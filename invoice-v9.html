@@ -1,124 +1,33 @@
 <!doctype html>
 <html lang="ja">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>請求書作成</title>
-<style>
-html,body{margin:0;width:100%;height:100%;background:#f4f6f8}iframe{display:block;width:100%;height:100%;border:0}
-</style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-</head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>請求書作成</title></head>
 <body>
-<iframe id="app" src="./index.html"></iframe>
 <script>
-const frame=document.getElementById('app');
-frame.addEventListener('load',()=>{
-  const w=frame.contentWindow,d=frame.contentDocument;
-  if(!d)return;
-
-  function sanitizeFileName(name){
-    return String(name||'').replace(/[\\/:*?"<>|]/g,'_').replace(/\s+/g,' ').trim();
-  }
-  function latestShootDateFromItems(){
-    const dates=[...d.querySelectorAll('[data-f="date"]')].map(el=>el.value).filter(Boolean).sort();
-    return dates.length?dates[dates.length-1].replaceAll('-',''):'00000000';
-  }
-  function suggestedPdfName(){
-    const project=d.getElementById('projectTitle')?.value.trim()||'作品名';
-    return sanitizeFileName(`${latestShootDateFromItems()}_${project}_Invoice_照明_藤田陽介`);
-  }
-  function maybeSetSuggestedFileName(){
-    const input=d.getElementById('pdfFileName');
-    if(!input||input.dataset.userEdited==='1')return;
-    input.value=suggestedPdfName();
-  }
-
-  const project=d.getElementById('projectTitle');
-  if(project && !d.getElementById('pdfFileName')){
-    const label=d.createElement('label');
-    label.style.gridColumn='1/-1';
-    label.innerHTML='PDFファイル名<input id="pdfFileName" type="text" placeholder="例：20261020_○○MV_Invoice_照明_藤田陽介">';
-    project.closest('label')?.insertAdjacentElement('afterend',label);
-  }
-
-  const fileNameInput=d.getElementById('pdfFileName');
-  if(fileNameInput){
-    fileNameInput.addEventListener('input',()=>fileNameInput.dataset.userEdited='1');
-  }
-  project?.addEventListener('input',maybeSetSuggestedFileName);
-  project?.addEventListener('change',maybeSetSuggestedFileName);
-
-  function wireDates(){
-    d.querySelectorAll('[data-f="date"]').forEach(el=>{
-      if(el.dataset.filenameWired)return;
-      el.dataset.filenameWired='1';
-      el.addEventListener('input',maybeSetSuggestedFileName);
-      el.addEventListener('change',maybeSetSuggestedFileName);
-    });
-  }
-  wireDates();
-
-  const addBtn=d.getElementById('addLine');
-  addBtn?.addEventListener('click',()=>setTimeout(()=>{wireDates();maybeSetSuggestedFileName()},0));
-  d.addEventListener('click',e=>{
-    if(e.target?.matches?.('[data-remove]'))setTimeout(maybeSetSuggestedFileName,0);
-  });
-
-  const printBtn=d.getElementById('printBtn');
-  if(printBtn){
-    printBtn.textContent='PDFを保存 / 共有';
-    printBtn.addEventListener('click',async e=>{
-      e.preventDefault();
-      e.stopImmediatePropagation();
-
-      const page=d.querySelector('.invoice-page');
-      if(!page){ alert('先に請求書をプレビューしてください。'); return; }
-
-      const baseName=sanitizeFileName(d.getElementById('pdfFileName')?.value||suggestedPdfName())||'請求書';
-      const fileName=`${baseName}.pdf`;
-      const oldText=printBtn.textContent;
-      printBtn.disabled=true;
-      printBtn.textContent='PDF作成中…';
-
-      try{
-        const opt={
-          margin:[8,8,8,8],
-          filename:fileName,
-          image:{type:'jpeg',quality:0.98},
-          html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false},
-          jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}
-        };
-        const worker=html2pdf().set(opt).from(page).toPdf();
-        const blob=await worker.outputPdf('blob');
-        const file=new File([blob],fileName,{type:'application/pdf'});
-
-        if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
-          await navigator.share({files:[file],title:baseName});
-        }else{
-          const url=URL.createObjectURL(blob);
-          const a=document.createElement('a');
-          a.href=url;
-          a.download=fileName;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          setTimeout(()=>URL.revokeObjectURL(url),2000);
-        }
-      }catch(err){
-        if(err?.name!=='AbortError'){
-          console.error(err);
-          alert('PDFの作成に失敗しました。もう一度お試しください。');
-        }
-      }finally{
-        printBtn.disabled=false;
-        printBtn.textContent=oldText;
-      }
-    },true);
-  }
-
-  maybeSetSuggestedFileName();
-});
+(async()=>{
+  const res=await fetch('./index.html',{cache:'no-store'});
+  let html=await res.text();
+  const patch=`<script>
+  (function(){
+    function sanitizeFileName(name){return String(name||'').replace(/[\\\\/:*?\"<>|]/g,'_').replace(/\\s+/g,' ').trim();}
+    function latestShootDateFromItems(){const dates=[...document.querySelectorAll('[data-f="date"]')].map(el=>el.value).filter(Boolean).sort();return dates.length?dates[dates.length-1].replaceAll('-',''):'00000000';}
+    function suggestedPdfName(){const project=document.getElementById('projectTitle')?.value.trim()||'作品名';return sanitizeFileName(\`${'${'}latestShootDateFromItems()}_${'${'}project}_Invoice_照明_藤田陽介\`);}
+    function maybeSetSuggestedFileName(){const input=document.getElementById('pdfFileName');if(!input||input.dataset.userEdited==='1')return;input.value=suggestedPdfName();}
+    const project=document.getElementById('projectTitle');
+    if(project && !document.getElementById('pdfFileName')){const label=document.createElement('label');label.style.gridColumn='1/-1';label.innerHTML='PDFファイル名<input id="pdfFileName" type="text" placeholder="例：20261020_○○MV_Invoice_照明_藤田陽介">';project.closest('label')?.insertAdjacentElement('afterend',label);}
+    document.getElementById('pdfFileName')?.addEventListener('input',e=>e.currentTarget.dataset.userEdited='1');
+    project?.addEventListener('input',maybeSetSuggestedFileName);project?.addEventListener('change',maybeSetSuggestedFileName);
+    function wireDates(){document.querySelectorAll('[data-f="date"]').forEach(el=>{if(el.dataset.filenameWired)return;el.dataset.filenameWired='1';el.addEventListener('input',maybeSetSuggestedFileName);el.addEventListener('change',maybeSetSuggestedFileName);});}
+    wireDates();
+    document.getElementById('addLine')?.addEventListener('click',()=>setTimeout(()=>{wireDates();maybeSetSuggestedFileName()},0));
+    document.addEventListener('click',e=>{if(e.target?.matches?.('[data-remove]'))setTimeout(maybeSetSuggestedFileName,0);});
+    const printBtn=document.getElementById('printBtn');
+    printBtn?.addEventListener('click',()=>{const filename=sanitizeFileName(document.getElementById('pdfFileName')?.value||suggestedPdfName())||'請求書';document.title=filename;setTimeout(()=>window.print(),0);},true);
+    maybeSetSuggestedFileName();
+  })();
+  <\/script>`;
+  html=html.replace('</body>',patch+'</body>');
+  document.open();document.write(html);document.close();
+})();
 </script>
 </body>
 </html>
