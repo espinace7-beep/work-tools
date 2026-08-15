@@ -6,28 +6,62 @@
 (async()=>{
   const res=await fetch('./index.html',{cache:'no-store'});
   let html=await res.text();
+  html=html.replace('</head>','<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><\\/script></head>');
   const patch=`<script>
   (function(){
     function sanitizeFileName(name){return String(name||'').replace(/[\\\\/:*?\"<>|]/g,'_').replace(/\\s+/g,' ').trim();}
     function latestShootDateFromItems(){const dates=[...document.querySelectorAll('[data-f="date"]')].map(el=>el.value).filter(Boolean).sort();return dates.length?dates[dates.length-1].replaceAll('-',''):'00000000';}
     function suggestedPdfName(){const project=document.getElementById('projectTitle')?.value.trim()||'作品名';return sanitizeFileName(\`${'${'}latestShootDateFromItems()}_${'${'}project}_Invoice_照明_藤田陽介\`);}
     function maybeSetSuggestedFileName(){const input=document.getElementById('pdfFileName');if(!input||input.dataset.userEdited==='1')return;input.value=suggestedPdfName();}
+
     const project=document.getElementById('projectTitle');
-    if(project && !document.getElementById('pdfFileName')){const label=document.createElement('label');label.style.gridColumn='1/-1';label.innerHTML='PDFファイル名<input id="pdfFileName" type="text" placeholder="例：20261020_○○MV_Invoice_照明_藤田陽介">';project.closest('label')?.insertAdjacentElement('afterend',label);}
+    if(project && !document.getElementById('pdfFileName')){
+      const label=document.createElement('label');
+      label.style.gridColumn='1/-1';
+      label.innerHTML='PDFファイル名<input id="pdfFileName" type="text" placeholder="例：20261020_○○MV_Invoice_照明_藤田陽介">';
+      project.closest('label')?.insertAdjacentElement('afterend',label);
+    }
     document.getElementById('pdfFileName')?.addEventListener('input',e=>e.currentTarget.dataset.userEdited='1');
     project?.addEventListener('input',maybeSetSuggestedFileName);project?.addEventListener('change',maybeSetSuggestedFileName);
+
     function wireDates(){document.querySelectorAll('[data-f="date"]').forEach(el=>{if(el.dataset.filenameWired)return;el.dataset.filenameWired='1';el.addEventListener('input',maybeSetSuggestedFileName);el.addEventListener('change',maybeSetSuggestedFileName);});}
     wireDates();
     document.getElementById('addLine')?.addEventListener('click',()=>setTimeout(()=>{wireDates();maybeSetSuggestedFileName()},0));
     document.addEventListener('click',e=>{if(e.target?.matches?.('[data-remove]'))setTimeout(maybeSetSuggestedFileName,0);});
+
+    const preview=document.getElementById('invoicePreview');
+    const actions=preview?.querySelector('.print-actions');
     const printBtn=document.getElementById('printBtn');
-    printBtn?.addEventListener('click',()=>{const filename=sanitizeFileName(document.getElementById('pdfFileName')?.value||suggestedPdfName())||'請求書';document.title=filename;setTimeout(()=>window.print(),0);},true);
+    if(actions && printBtn && !document.getElementById('pdfDirectBtn')){
+      printBtn.textContent='印刷';
+      const pdfBtn=document.createElement('button');
+      pdfBtn.id='pdfDirectBtn';pdfBtn.type='button';pdfBtn.className='primary';pdfBtn.textContent='PDFを作成 / 共有';
+      actions.style.gap='8px';actions.style.flexWrap='wrap';actions.insertBefore(pdfBtn,printBtn);
+
+      pdfBtn.addEventListener('click',async()=>{
+        const page=document.querySelector('.invoice-page');
+        if(!page){alert('先に請求書をプレビューしてください。');return;}
+        if(typeof html2pdf==='undefined'){alert('PDF機能の読み込みに失敗しました。再読み込みしてください。');return;}
+        const baseName=sanitizeFileName(document.getElementById('pdfFileName')?.value||suggestedPdfName())||'請求書';
+        const fileName=baseName+'.pdf';
+        const oldText=pdfBtn.textContent;pdfBtn.disabled=true;pdfBtn.textContent='PDF作成中…';
+        try{
+          const opt={margin:[8,8,8,8],filename:fileName,image:{type:'jpeg',quality:.98},html2canvas:{scale:2,useCORS:true,backgroundColor:'#fff',logging:false,scrollX:0,scrollY:0},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}};
+          const worker=html2pdf().set(opt).from(page).toPdf();
+          const blob=await worker.outputPdf('blob');
+          const file=new File([blob],fileName,{type:'application/pdf'});
+          if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){await navigator.share({files:[file],title:baseName});}
+          else{const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=fileName;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);}
+        }catch(err){if(err?.name!=='AbortError'){console.error(err);alert('PDFの作成に失敗しました。');}}
+        finally{pdfBtn.disabled=false;pdfBtn.textContent=oldText;}
+      });
+    }
     maybeSetSuggestedFileName();
   })();
-  <\/script>`;
+  <\\/script>`;
   html=html.replace('</body>',patch+'</body>');
   document.open();document.write(html);document.close();
 })();
-</script>
+<\/script>
 </body>
 </html>
