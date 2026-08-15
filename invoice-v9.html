@@ -7,6 +7,7 @@
 <style>
 html,body{margin:0;width:100%;height:100%;background:#f4f6f8}iframe{display:block;width:100%;height:100%;border:0}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 <iframe id="app" src="./index.html"></iframe>
@@ -65,15 +66,56 @@ frame.addEventListener('load',()=>{
   });
 
   const printBtn=d.getElementById('printBtn');
-  printBtn?.addEventListener('click',e=>{
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    const filename=sanitizeFileName(d.getElementById('pdfFileName')?.value||suggestedPdfName())||'請求書';
-    const oldTitle=d.title;
-    d.title=filename;
-    w.print();
-    setTimeout(()=>{d.title=oldTitle},1000);
-  },true);
+  if(printBtn){
+    printBtn.textContent='PDFを保存 / 共有';
+    printBtn.addEventListener('click',async e=>{
+      e.preventDefault();
+      e.stopImmediatePropagation();
+
+      const page=d.querySelector('.invoice-page');
+      if(!page){ alert('先に請求書をプレビューしてください。'); return; }
+
+      const baseName=sanitizeFileName(d.getElementById('pdfFileName')?.value||suggestedPdfName())||'請求書';
+      const fileName=`${baseName}.pdf`;
+      const oldText=printBtn.textContent;
+      printBtn.disabled=true;
+      printBtn.textContent='PDF作成中…';
+
+      try{
+        const opt={
+          margin:[8,8,8,8],
+          filename:fileName,
+          image:{type:'jpeg',quality:0.98},
+          html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false},
+          jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}
+        };
+        const worker=html2pdf().set(opt).from(page).toPdf();
+        const blob=await worker.outputPdf('blob');
+        const file=new File([blob],fileName,{type:'application/pdf'});
+
+        if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
+          await navigator.share({files:[file],title:baseName});
+        }else{
+          const url=URL.createObjectURL(blob);
+          const a=document.createElement('a');
+          a.href=url;
+          a.download=fileName;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(()=>URL.revokeObjectURL(url),2000);
+        }
+      }catch(err){
+        if(err?.name!=='AbortError'){
+          console.error(err);
+          alert('PDFの作成に失敗しました。もう一度お試しください。');
+        }
+      }finally{
+        printBtn.disabled=false;
+        printBtn.textContent=oldText;
+      }
+    },true);
+  }
 
   maybeSetSuggestedFileName();
 });
