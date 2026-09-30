@@ -63,6 +63,7 @@ button.small{padding:7px 10px;font-size:13px}
 .issue-line{display:grid;gap:4px;margin-bottom:42px}
 .issue-line div{border-bottom:1px solid #111;padding-bottom:3px}
 .invoice-message{margin-top:24px;font-size:12px}
+.payment-due{margin-top:8px;font-size:11px;text-align:left}
 .invoice-total{display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid #111;padding:18px 0 8px;margin-top:8px}
 .invoice-total strong{font-size:24px}
 .invoice-table{width:100%;border-collapse:collapse;margin-top:14px;font-size:11px;table-layout:fixed}
@@ -102,7 +103,7 @@ button.small{padding:7px 10px;font-size:13px}
   .invoice-title{font-size:20pt}
   .invoice-table{font-size:8pt}
   .invoice-table th,.invoice-table td{padding:2mm 1.5mm}
-  .invoice-issuer,.invoice-message,.client-meta{font-size:8pt}
+  .invoice-issuer,.invoice-message,.payment-due,.client-meta{font-size:8pt}
   .issuer-seal{width:14mm;height:14mm;right:-8mm;top:-4mm}
   .invoice-total strong{font-size:17pt}
   .tax-summary{font-size:8pt;width:72mm}
@@ -118,10 +119,12 @@ button.small{padding:7px 10px;font-size:13px}
     <h2>請求書情報</h2>
     <div class="grid3">
       <label>請求日<input id="invoiceDate" type="date"></label>
+      <label>支払期日（自動）<input id="paymentDueDate" type="date"></label>
       <label>請求書 No<input id="invoiceNo" type="text" placeholder="例：2026-0810-01"></label>
       <label>作品番号<input id="projectNo" type="text" placeholder="任意"></label>
     </div>
-    <div class="grid2">
+    <p class="muted">支払期日は、請求日ではなく明細の役務提供日を基準に自動計算します。複数の日付がある場合は、法定上限を超えないよう最も早い日付から60日目（役務提供日を1日目として計算）を初期値にします。必要に応じて合意済みの支払期日に変更できます。</p>
+<div class="grid2">
       <label>宛先種別
         <select id="recipientType">
           <option value="company" selected>会社宛</option>
@@ -131,6 +134,9 @@ button.small{padding:7px 10px;font-size:13px}
       <label>請求先<input id="clientName" type="text" placeholder="例：株式会社○○"></label>
       <label>担当者<input id="clientPerson" type="text" placeholder="例：山田 太郎"></label>
       <label style="grid-column:1/-1">作品名<input id="projectTitle" type="text" placeholder="例：○○ MV / ○○ CM"></label>
+      <label style="grid-column:1/-1">PDFファイル名
+        <input id="pdfFileName" type="text" placeholder="例：20261020_○○MV_Invoice_照明_藤田陽介">
+      </label>
       
     </div>
   </section>
@@ -173,7 +179,7 @@ button.small{padding:7px 10px;font-size:13px}
 
   <section id="invoicePreview" class="preview-wrap hidden">
     <div class="print-actions no-print">
-      <button id="printBtn" class="primary" type="button">PDF保存 / 印刷</button>
+      <button id="printBtn" class="primary" type="button">印刷 / PDF保存</button>
     </div>
     <div id="previewPage"></div>
   </section>
@@ -202,6 +208,64 @@ function todayValue(){
 }
 document.getElementById('invoiceDate').value=todayValue();
 
+function earliestServiceDateFromItems(){
+  const dates=[...document.querySelectorAll('[data-f="date"]')]
+    .map(el=>el.value)
+    .filter(Boolean)
+    .sort();
+  return dates.length ? dates[0] : '';
+}
+
+function statutoryMaxPaymentDate(serviceDate){
+  if(!serviceDate)return '';
+  const [y,m,d]=serviceDate.split('-').map(Number);
+  const dt=new Date(y,m-1,d);
+  // フリーランス法等では役務提供日を算入して60日以内。
+  // 役務提供日を1日目とするため、60日目は暦日で+59日。
+  dt.setDate(dt.getDate()+59);
+  return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+}
+
+function maybeSetPaymentDueDate(){
+  const input=document.getElementById('paymentDueDate');
+  if(!input || input.dataset.userEdited==='1')return;
+  input.value=statutoryMaxPaymentDate(earliestServiceDateFromItems());
+}
+
+function sanitizeFileName(name){
+  return String(name||'')
+    .replace(/[\\/:*?"<>|]/g,'_')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+
+function latestShootDateFromItems(){
+  const dates=[...document.querySelectorAll('[data-f="date"]')]
+    .map(el=>el.value)
+    .filter(Boolean)
+    .sort();
+
+  // 明細に日付がなければ仮表示。
+  if(!dates.length)return '00000000';
+
+  // YYYY-MM-DD は文字列ソートでも時系列順になるため最後が最新日。
+  return dates[dates.length-1].replaceAll('-','');
+}
+
+function suggestedPdfName(){
+  const shootDate=latestShootDateFromItems();
+  const project=document.getElementById('projectTitle')?.value.trim()||'作品名';
+  return sanitizeFileName(`${shootDate}_${project}_Invoice_照明_藤田陽介`);
+}
+
+function maybeSetSuggestedFileName(){
+  const input=document.getElementById('pdfFileName');
+  if(!input || input.dataset.userEdited==='1')return;
+  input.value=suggestedPdfName();
+}
+
+
+
 function addLine(data={}){
   serial++;
   const row=document.createElement('div');
@@ -222,11 +286,18 @@ function addLine(data={}){
   lineItems.appendChild(row);
 
   row.querySelectorAll('input,select').forEach(el=>{
-    el.addEventListener('input',calculate);
-    el.addEventListener('change',calculate);
+    el.addEventListener('input',()=>{
+      calculate();
+      if(el.dataset.f==='date'){ maybeSetSuggestedFileName(); maybeSetPaymentDueDate(); }
+    });
+    el.addEventListener('change',()=>{
+      calculate();
+      if(el.dataset.f==='date'){ maybeSetSuggestedFileName(); maybeSetPaymentDueDate(); }
+    });
   });
-  row.querySelector('[data-remove]').addEventListener('click',()=>{row.remove();calculate()});
+  row.querySelector('[data-remove]').addEventListener('click',()=>{row.remove();calculate();maybeSetSuggestedFileName();maybeSetPaymentDueDate()});
   calculate();
+  maybeSetPaymentDueDate();
 }
 
 function getRows(){
@@ -275,8 +346,22 @@ function calculate(){
   return {rows,sub10,tax10,subtotal,tax,gross,withholding,netPayment};
 }
 
+
+['projectTitle'].forEach(id=>{
+  document.getElementById(id)?.addEventListener('input',maybeSetSuggestedFileName);
+  document.getElementById(id)?.addEventListener('change',maybeSetSuggestedFileName);
+});
+document.getElementById('pdfFileName')?.addEventListener('input',e=>{
+  e.currentTarget.dataset.userEdited='1';
+});
+document.getElementById('paymentDueDate')?.addEventListener('input',e=>{
+  e.currentTarget.dataset.userEdited='1';
+});
+maybeSetSuggestedFileName();
+maybeSetPaymentDueDate();
+
 document.getElementById('withholdingEnabled').addEventListener('change',calculate);
-document.getElementById('addLine').addEventListener('click',()=>addLine());
+document.getElementById('addLine').addEventListener('click',()=>{addLine();maybeSetSuggestedFileName()});
 
 function fmtDate(v){
   if(!v)return '';
@@ -306,6 +391,7 @@ function buildTableRows(rows){
 function buildPreview(){
   const c=calculate();
   const invoiceDate=fmtDate(document.getElementById('invoiceDate').value);
+  const paymentDueDate=fmtDate(document.getElementById('paymentDueDate').value);
   const invoiceNo=document.getElementById('invoiceNo').value.trim();
   const projectNo=document.getElementById('projectNo').value.trim();
   const recipientType=document.getElementById('recipientType').value;
@@ -339,7 +425,7 @@ function buildPreview(){
 
             <div class="invoice-total">
               <span>金額</span>
-              <strong>${yen(c.netPayment)} <span style="font-size:12px;font-weight:500">（源泉徴収後）</span></strong>
+              <strong>${yen(c.netPayment)}-</strong>
             </div>
           </div>
         </div>
@@ -394,6 +480,7 @@ function buildPreview(){
       <div class="bank">
         振り込み先：${ISSUER.bank}
       </div>
+      ${paymentDueDate ? `<div class="payment-due"><strong>お支払期日：</strong>${paymentDueDate}</div>` : ''}
     </div>`;
 
   document.getElementById('invoicePreview').classList.remove('hidden');
@@ -401,9 +488,27 @@ function buildPreview(){
 }
 
 document.getElementById('previewBtn').addEventListener('click',buildPreview);
-document.getElementById('printBtn').addEventListener('click',()=>window.print());
+document.getElementById('printBtn').addEventListener('click',()=>{
+  const input=document.getElementById('pdfFileName');
+  const filename=sanitizeFileName(input?.value||suggestedPdfName()) || '請求書';
+
+  // PCの「印刷 → PDFに保存」で、このタイトルを保存候補名として使わせる。
+  const oldTitle=document.title;
+  document.title=filename;
+
+  const restoreTitle=()=>{
+    document.title=oldTitle;
+    window.removeEventListener('afterprint',restoreTitle);
+  };
+
+  // 印刷ダイアログを閉じるまでタイトルを維持する。
+  window.addEventListener('afterprint',restoreTitle);
+
+  window.print();
+});
 
 addLine();
+maybeSetSuggestedFileName();
 </script>
 </body>
 </html>
