@@ -1,0 +1,40 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),path=require('node:path');
+require('../catalog-core.js');
+const data=JSON.parse(fs.readFileSync(path.join(__dirname,'../catalog.json'),'utf8'));
+async function mount(initial){
+ const elements=new Map(),listeners={},drawn=[];
+ const el=key=>{if(!elements.has(key))elements.set(key,{value:'',textContent:'',innerHTML:'',dataset:{},events:{},addEventListener(k,f){(this.events[k]??=[]).push(f)},matches(){return false},focus(){},setAttribute(k,v){this[k]=v}});return elements.get(key)};
+ const metas=['title','date','ld','move'].map(k=>Object.assign(el('meta'+k),{dataset:{meta:k}}));
+ const ctx={setTransform(){},fillRect(){},drawImage(){},measureText(s){return{width:s.length*4}},fillText(t){drawn.push(String(t))}};
+ Object.assign(el('#arc-canvas'),{getContext:()=>ctx,toDataURL:()=> 'data:image/jpeg;base64,/9j/2Q=='});
+ const root={querySelector:el,querySelectorAll(s){return s==='[data-meta]'?metas:[]},addEventListener(k,f){(listeners[k]??=[]).push(f)}};
+ let state=initial?JSON.stringify(initial):null;
+ const context={ArcCatalog,document:{getElementById:()=>root,createElement:()=>({click(){}})},localStorage:{getItem(){return state},setItem(k,v){state=v}},requestAnimationFrame:f=>setTimeout(f,0),cancelAnimationFrame:clearTimeout,setTimeout,clearTimeout,TextEncoder,Uint8Array,Blob,URL,atob,alert(){},fetch:async()=>({ok:true,json:async()=>data}),Image:class{complete=true;naturalWidth=1786}};
+ vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../app.js'),'utf8'),context);
+ await new Promise(r=>setTimeout(r,20));
+ return {el,listeners,drawn,getState:()=>JSON.parse(state),input(id,field,value){listeners.input[0]({target:{value,matches:s=>s==='[data-'+field+']',closest:()=>({dataset:{row:id}})}})},click(selector,dataset){listeners.click[0]({target:{closest:s=>s===selector?{dataset}:null}})}};
+}
+(async()=>{
+ const a=await mount();
+ assert(a.el('[data-slot="inputs"]').innerHTML.includes('role="tablist"'));
+ assert(a.el('[data-slot="inputs"]').innerHTML.includes('data-qty type="number"'));
+ assert.equal(a.el('[data-action="pdf"]').events.click.length,1);
+ a.el('[data-action="sample"]').events.click[0]();await new Promise(r=>setTimeout(r,230));
+ assert.equal(a.el('[data-slot="total"]').textContent,'¥125,500');
+ assert.equal(a.getState().groups[0][3].qty,4);
+ assert(!a.drawn.some(s=>/¥|円/.test(s)),'Prices leaked to PDF');
+ const b=await mount();b.input('r1','name','600c');b.input('r1','qty','2');
+ assert(b.el('[data-slot="status"]').textContent.includes('選択待ち 1件'));
+ assert(b.el('[data-hint="r1"]').innerHTML.includes('data-pick'));
+ const pro2=data.items.find(i=>i.name==='Aputure LS 600c Pro II');
+ b.click('[data-pick]',{pick:pro2.id,for:'r1'});assert.equal(b.el('[data-slot="total"]').textContent,'¥39,000');
+ b.input('r1','qty','3');assert.equal(b.el('[data-slot="total"]').textContent,'¥58,500');
+ b.input('r1','name','600x');assert.equal(b.el('[data-slot="status"]').textContent,'照合済み 1件');
+ b.click('[data-tab]',{tab:'1'});assert.equal(b.el('#arc-panel-0').hidden,true);assert.equal(b.el('#arc-panel-1').hidden,false);
+ b.input('r1','name','<img src=x onerror=alert(1)>');assert(!b.el('[data-hint="r1"]').innerHTML.includes('<img'));
+ b.click('[data-remove]',{remove:'r1'});assert.equal(b.el('[data-slot="total"]').textContent,'¥0');
+ const legacy=await mount({meta:{title:'旧作品'},inputs:['Titan 4本','センチ大 ×6','','','','']});
+ await new Promise(r=>setTimeout(r,230));assert.equal(legacy.getState().meta.title,'旧作品');assert.equal(legacy.getState().groups[0][0].name,'Titan');assert.equal(legacy.getState().groups[0][0].qty,4);assert.equal(legacy.el('[data-slot="total"]').textContent,'¥33,800');
+ const restore=await mount(legacy.getState());assert.equal(restore.el('[data-slot="total"]').textContent,'¥33,800');
+ console.log('PASS: category tabs, separate name/quantity, live candidate selection and totals, autosave/restore, legacy migration, deletion, private PDF prices');
+})().catch(e=>{console.error(e);process.exitCode=1});
