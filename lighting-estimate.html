@@ -1,0 +1,1565 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>照明人件費 見積計算</title>
+<style>
+:root{
+  --bg:#f4f6f8;--card:#fff;--text:#111827;--muted:#6b7280;--border:#d1d5db;--accent:#111827;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif}
+main{max-width:1100px;margin:0 auto;padding:24px}
+h1,h2,h3,h4,p{margin:0}
+.stack{display:grid;gap:20px}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.between{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px}
+.metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.metric{background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px}
+.metric small{color:var(--muted)}
+.metric strong{display:block;margin-top:4px;font-size:22px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid-check{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+label{font-size:14px}
+.allowance-option{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  width:max-content;
+  max-width:100%;
+  cursor:pointer;
+}
+.allowance-option input[type="checkbox"]{
+  margin:0;
+  flex:0 0 auto;
+}
+input,button{font:inherit}
+input[type=text],input[type=number],input[type=date],input[type=time]{
+  width:100%;border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:white;color:var(--text)
+}
+button{border:1px solid var(--border);background:white;border-radius:12px;padding:10px 14px;cursor:pointer}
+.time-control{display:grid;grid-template-columns:1fr 1fr;gap:7px;align-items:center}
+.time-part{position:relative}
+.time-part input{
+  width:100%;border:1px solid var(--border);border-radius:12px;padding:10px 52px 10px 10px;background:#fff;color:var(--text)
+}
+.time-part .unit{
+  position:absolute;right:28px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--muted);pointer-events:none
+}
+.time-part .time-arrow{
+  position:absolute;right:4px;top:50%;transform:translateY(-50%);
+  border:0;background:transparent;padding:6px 7px;line-height:1;cursor:pointer;color:#555
+}
+.time-menu{
+  position:absolute;z-index:999;left:0;right:0;top:calc(100% + 4px);
+  max-height:220px;overflow:auto;background:#fff;border:1px solid var(--border);
+  border-radius:10px;box-shadow:0 8px 22px rgba(0,0,0,.12);padding:4px;
+}
+.time-option{
+  display:block;width:100%;border:0;background:#fff;text-align:left;padding:8px 10px;
+  border-radius:7px;cursor:pointer
+}
+.time-option:hover,.time-option:focus{background:#eef2f7;outline:none}
+.time-menu.hidden{display:none!important}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+button.small{padding:8px 10px;font-size:13px}
+.muted{color:var(--muted);font-size:14px}
+.badge{background:#eef1f5;border-radius:999px;padding:5px 9px;font-size:13px}
+.group{border:1px solid var(--border);border-radius:14px;padding:14px;display:grid;gap:12px}
+.hidden{display:none!important}
+.breakdown{border:1px solid var(--border);border-radius:14px;overflow:hidden;background:white}
+.breakdown .line{display:flex;justify-content:space-between;gap:16px;padding:10px 14px;border-top:1px solid #eee}
+.breakdown .line:first-child{border-top:0}
+.breakdown .heading{padding:11px 14px;background:#f8fafc;font-weight:600;border-top:1px solid #eee}
+.preview-wrap{background:#fff;border:1px solid var(--border);border-radius:16px;padding:22px}
+.print-actions{display:flex;justify-content:flex-end;gap:10px;margin-bottom:16px}
+.estimate-page{background:#fff;color:#111;padding:10px 4px 28px}
+.estimate-title{text-align:center;font-size:26px;letter-spacing:.45em;font-weight:700;margin:0 0 18px}
+.estimate-rule{border:0;border-top:2px solid #111;margin:0 0 14px}
+.estimate-top{display:grid;grid-template-columns:1.1fr 1fr;gap:36px;align-items:start}
+.client-line{display:flex;align-items:flex-end;gap:10px;border-bottom:1px solid #111;padding:0 0 7px;font-size:17px;font-weight:700}
+.client-line .honorific{margin-left:auto}
+.issue-line{text-align:right;font-size:12px;margin-bottom:38px}
+.issuer{font-size:12px;line-height:1.55;text-align:left;margin-left:auto;width:340px;max-width:100%}
+.estimate-message{font-size:12px;margin-top:44px}
+.big-total{display:flex;gap:16px;align-items:baseline;margin-top:24px;font-size:17px;font-weight:700}
+.big-total strong{font-size:24px}
+.estimate-table{width:100%;border-collapse:collapse;margin-top:44px;font-size:11px;table-layout:fixed}
+.estimate-table th,.estimate-table td{border-bottom:1px solid #b8b8b8;border-right:1px solid #c8c8c8;padding:7px 5px;vertical-align:top}
+.estimate-table th:last-child,.estimate-table td:last-child{border-right:0}
+.estimate-table th{font-weight:700;text-align:center;border-bottom:1.5px solid #777}
+.estimate-table .date-col{width:16%}
+.estimate-table .item-col{width:50%}
+.estimate-table .time-col{width:16%}
+.estimate-table .amount-col{width:18%}
+.estimate-table td.amount{text-align:right;white-space:nowrap}
+.estimate-table td.center{text-align:center}
+.item-main{font-weight:600}
+.item-detail{font-size:9.5px;color:#444;line-height:1.45;margin-top:3px}
+.tax-area{margin-top:10px;display:grid;grid-template-columns:1fr 260px;gap:20px;align-items:start}
+.tax-note{font-size:10px;padding-top:8px}
+.tax-box{font-size:12px}
+.tax-row{display:grid;grid-template-columns:1fr 110px;gap:10px;border-bottom:1px solid #bbb;padding:9px 0}
+.tax-row span:last-child{text-align:right}
+.tax-row.total{font-size:14px;font-weight:700;border-bottom:0;padding-top:18px}
+.notes-title{font-weight:700;font-size:12px;margin-top:44px}
+.page-label{font-size:10px;color:#666;text-align:right;margin-top:10px}
+@media(max-width:760px){
+  main{padding:14px}
+  .metric-grid{grid-template-columns:1fr 1fr}
+  .grid2{grid-template-columns:1fr}
+  .grid-check{grid-template-columns:1fr}
+  .preview-header{display:grid}
+}
+@media print{
+  @page{
+    size:A4 portrait;
+    margin:8mm;
+  }
+
+  html,body{
+    width:210mm;
+    margin:0!important;
+    padding:0!important;
+    background:#fff!important;
+  }
+
+  body{
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
+  }
+
+  main{
+    width:auto!important;
+    max-width:none!important;
+    margin:0!important;
+    padding:0!important;
+  }
+
+  .no-print{
+    display:none!important;
+  }
+
+  #estimatePreview{
+    display:block!important;
+    width:auto!important;
+    max-width:none!important;
+    overflow:visible!important;
+    border:0!important;
+    padding:0!important;
+    margin:0!important;
+  }
+
+  .preview-wrap{
+    width:auto!important;
+    max-width:none!important;
+    border:0!important;
+    padding:0!important;
+    margin:0!important;
+  }
+
+  #previewPages{
+    min-width:0!important;
+    width:auto!important;
+  }
+
+  .print-actions{
+    display:none!important;
+  }
+
+  .estimate-page{
+    box-sizing:border-box;
+    width:194mm!important;
+    max-width:194mm!important;
+    margin:0 auto!important;
+    padding:0!important;
+    min-height:0;
+    break-after:page;
+    page-break-after:always;
+  }
+
+  .estimate-page:last-child{
+    break-after:auto;
+    page-break-after:auto;
+  }
+
+  .estimate-title{
+    font-size:20pt!important;
+    margin-bottom:5mm!important;
+  }
+
+  .estimate-top{
+    grid-template-columns:1.05fr .95fr!important;
+    gap:8mm!important;
+  }
+
+  .client-line{
+    font-size:12pt!important;
+  }
+
+  .issue-line,
+  .issuer,
+  .estimate-message{
+    font-size:8.5pt!important;
+  }
+
+  .estimate-message{
+    margin-top:11mm!important;
+  }
+
+  .big-total{
+    margin-top:7mm!important;
+    font-size:11pt!important;
+  }
+
+  .big-total strong{
+    font-size:17pt!important;
+  }
+
+  .estimate-table{
+    width:100%!important;
+    table-layout:fixed!important;
+    margin-top:11mm!important;
+    font-size:7.8pt!important;
+  }
+
+  .estimate-table th,
+  .estimate-table td{
+    padding:2.2mm 1.5mm!important;
+    line-height:1.25!important;
+  }
+
+  .estimate-table .date-col{width:15%!important}
+  .estimate-table .item-col{width:51%!important}
+  .estimate-table .time-col{width:16%!important}
+  .estimate-table .amount-col{width:18%!important}
+
+  .item-detail{
+    font-size:6.8pt!important;
+    line-height:1.3!important;
+  }
+
+  .tax-area{
+    margin-top:3mm!important;
+    grid-template-columns:1fr 68mm!important;
+    gap:5mm!important;
+    break-inside:avoid;
+    page-break-inside:avoid;
+  }
+
+  .tax-note{
+    font-size:7pt!important;
+  }
+
+  .tax-box{
+    font-size:8pt!important;
+  }
+
+  .tax-row{
+    grid-template-columns:1fr 27mm!important;
+    gap:3mm!important;
+    padding:2.5mm 0!important;
+  }
+
+  .tax-row.total{
+    font-size:10pt!important;
+    padding-top:4mm!important;
+  }
+
+  .notes-title{
+    margin-top:8mm!important;
+    font-size:8pt!important;
+  }
+
+  .page-label{
+    margin-top:3mm!important;
+    font-size:7pt!important;
+  }
+
+  .estimate-table tr,
+  .person-card,
+  .tax-area{
+    break-inside:avoid;
+    page-break-inside:avoid;
+  }
+}
+
+/* ===== Mobile layout only: functionality is unchanged ===== */
+html{
+  -webkit-text-size-adjust:100%;
+  text-size-adjust:100%;
+}
+body{
+  min-width:0;
+  overflow-x:hidden;
+}
+button,input,select{
+  touch-action:manipulation;
+}
+
+@media (max-width: 760px){
+  main{
+    width:100%;
+    max-width:none;
+    padding:
+      max(12px, env(safe-area-inset-top))
+      max(12px, env(safe-area-inset-right))
+      max(24px, env(safe-area-inset-bottom))
+      max(12px, env(safe-area-inset-left));
+  }
+
+  h1{font-size:22px;line-height:1.25}
+  h2{font-size:19px}
+  h3{font-size:17px}
+  h4{font-size:16px}
+
+  .stack{gap:14px}
+  .card{
+    padding:13px;
+    border-radius:14px;
+  }
+
+  /* Form fields become one column, but header/action rows remain horizontal */
+  .grid2{
+    grid-template-columns:1fr;
+    gap:12px;
+  }
+
+  .grid-check{
+    grid-template-columns:1fr 1fr;
+    gap:8px 10px;
+  }
+
+  .allowance-option{
+    min-height:34px;
+    line-height:1.25;
+    align-items:center;
+  }
+
+  input[type=text],
+  input[type=number],
+  input[type=date],
+  input[type=time],
+  select{
+    min-height:46px;
+    font-size:16px;
+  }
+
+  button{
+    min-height:42px;
+    font-size:15px;
+  }
+
+  /* Main navigation actions are easy to tap */
+  #showAddDay,
+  #buildEstimate,
+  #previewEstimate,
+  #printPdf{
+    width:100%;
+  }
+
+  /* Keep section add/remove controls compact */
+  [data-action="addSecond"],
+  [data-action="addThird"],
+  [data-action="addStudent"],
+  [data-action="addEquipment"],
+  [data-action="removeGroup"],
+  [data-action="removeStudent"],
+  [data-action="removeEquipment"],
+  [data-action="removeDay"]{
+    width:auto;
+    flex:0 0 auto;
+  }
+
+  .between{
+    gap:10px;
+  }
+
+  .group{
+    padding:12px;
+    border-radius:13px;
+    gap:12px;
+  }
+
+  .group > .between{
+    align-items:center;
+  }
+
+  .group .row{
+    flex-wrap:nowrap;
+  }
+
+  .group [data-field="count"]{
+    width:78px!important;
+  }
+
+  /* Time input remains hour/minute split, just larger for touch */
+  .time-control{
+    width:100%;
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    gap:8px;
+  }
+
+  .time-part{
+    min-width:0;
+  }
+
+  .time-part input{
+    min-height:48px;
+    font-size:18px;
+    padding-top:10px;
+    padding-bottom:10px;
+  }
+
+  .time-part .time-arrow{
+    min-width:32px;
+    min-height:38px;
+  }
+
+  .time-menu{
+    max-height:min(46vh,280px);
+    z-index:3000;
+  }
+
+  .time-option{
+    min-height:42px;
+    font-size:16px;
+    padding:9px 11px;
+  }
+
+  .metric-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:8px;
+  }
+
+  .metric{
+    padding:11px;
+  }
+
+  .metric strong{
+    font-size:18px;
+  }
+
+  .breakdown{
+    font-size:13px;
+  }
+
+  .breakdown .line{
+    align-items:flex-start;
+    padding:10px 11px;
+  }
+
+  .breakdown .line > span{
+    min-width:0;
+    overflow-wrap:anywhere;
+  }
+
+  .breakdown .line > strong{
+    flex:0 0 auto;
+    white-space:nowrap;
+  }
+
+  /* Keep PDF preview at paper proportions rather than crushing it */
+  #estimatePreview{
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    padding:10px;
+  }
+
+  #previewPages{
+    min-width:700px;
+  }
+
+  .print-actions{
+    position:sticky;
+    left:0;
+    width:calc(100vw - 24px);
+    z-index:5;
+  }
+}
+
+@media (max-width: 430px){
+  .grid-check{
+    grid-template-columns:1fr;
+  }
+
+  .metric-grid{
+    grid-template-columns:1fr 1fr;
+  }
+
+  [data-action="addSecond"],
+  [data-action="addThird"],
+  [data-action="addStudent"],
+  [data-action="addEquipment"]{
+    font-size:12px;
+    padding:8px 9px;
+  }
+}
+
+
+.project-title{
+  text-align:center;
+  font-size:13px;
+  font-weight:700;
+  margin:-6px 0 18px;
+  letter-spacing:.04em;
+}
+@media print{
+  .project-title{
+    font-size:9pt!important;
+    margin:-2mm 0 5mm!important;
+  }
+}
+
+
+#estimateInfoTop{margin-bottom:4px}
+#estimateInfoTop .grid2{width:100%}
+
+</style>
+
+</head>
+<body>
+<main class="stack">
+  
+      <section class="card stack" id="estimateInfoTop">
+        <h2 style="margin:0">見積書情報</h2>
+        <div class="grid2">
+        <label style="grid-column:1/-1">作品名
+          <input id="projectTitle" type="text" placeholder="例：○○ MV / ○○ CM">
+        </label>
+        <label>宛先種別
+          <select id="clientType" style="width:100%;border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:white">
+            <option value="company" selected>会社名宛（御中）</option>
+            <option value="person">個人名宛（様）</option>
+          </select>
+        </label>
+        <label><span id="clientNameLabel">会社名</span><input id="clientCompany" type="text" placeholder="例：株式会社○○プロダクション"></label>
+        <input id="clientPerson" type="hidden" value="">
+        <label>見積日<input id="estimateDate" type="date"></label>
+      </div>
+      </section>
+
+      <section class="no-print stack">
+    <div class="between">
+      
+      <button id="showAddDay">＋ 撮影日を追加</button>
+    </div>
+
+    
+      <div class="no-print" style="margin-top:12px">
+        <button type="button" class="secondary add-day-bottom" style="width:100%">＋ 撮影日を追加</button>
+      </div>
+
+      <section id="addDayPanel" class="card hidden">
+      <div class="stack">
+        <h3>追加する撮影日</h3>
+        <label>日付<input id="newDayDate" type="date"></label>
+        <div class="row">
+          <button id="confirmAddDay" class="primary">この日付を追加</button>
+          <button id="cancelAddDay">キャンセル</button>
+        </div>
+      </div>
+    </section>
+
+    <div id="days" class="stack"></div>
+
+    <div class="metric-grid">
+      <div class="metric"><small>撮影日数</small><strong id="dayCount">1日</strong></div>
+      <div class="metric"><small>2nd 延べ人数</small><strong id="secondTotalPeople">1名</strong></div>
+      <div class="metric"><small>3rd 延べ人数</small><strong id="thirdTotalPeople">0名</strong></div>
+      <div class="metric"><small>税抜合計</small><strong id="grandTotal">¥51,000</strong></div>
+    </div>
+
+    <section class="stack">
+      <h2>全日程 内訳</h2>
+      <div id="breakdown" class="breakdown"></div>
+    </section>
+
+    <div class="between">
+      <span></span>
+      <button id="buildEstimate" class="primary">見積書作成へ</button>
+    </div>
+
+    <section id="namePanel" class="hidden stack">
+      <div>
+        <h2>見積書情報</h2>
+        <p class="muted">宛先とスタッフ名を入力します。</p>
+      </div>
+
+      
+
+      <div id="nameInputs" class="stack"></div>
+
+      <div class="between">
+        <span></span>
+        <button id="previewEstimate" class="primary">見積書をプレビュー</button>
+      </div>
+    </section>
+  </section>
+
+  <section id="estimatePreview" class="hidden preview-wrap">
+    <div class="print-actions no-print">
+      <button id="printPdf" class="primary">PDF保存 / 印刷</button>
+    </div>
+    <div id="previewPages"></div>
+  </section>
+</main>
+
+<script>
+const rates={
+  first:{label:'1st',day:28000,after30Hour:7000},
+  second:{label:'2nd',day:23000,after30Hour:5600},
+  third:{label:'3rd',day:11500,after30Hour:2800}
+};
+
+const firstAllowances=[
+  ['locationScout','ロケハン',()=>28000],
+  ['holdPrev','前日抑え',r=>r.day],
+  ['holdNext','翌日抑え',r=>r.day],
+  ['cancelFee','キャンセル料',r=>r.day],
+  ['deskWork','デスク作業',r=>r.day/2],
+  ['chroma','合成幕',r=>r.day],
+  ['lift','高所作業車',()=>7000],
+  ['scaffoldChief','足場主任',()=>10000],
+  ['scaffoldWorker','足場従事者',()=>5000],
+  ['lowVoltage','低電圧取扱',()=>5000]
+];
+
+const secondAllowances=[
+  ['locationScout','ロケハン',()=>28000],
+  ['holdPrev','前日抑え',r=>r.day],
+  ['holdNext','翌日抑え',r=>r.day],
+  ['cancelFee','キャンセル料',r=>r.day],
+  ['chroma','合成幕',r=>r.day],
+  ['lift','高所作業車',()=>7000],
+  ['scaffoldChief','足場主任',()=>10000],
+  ['scaffoldWorker','足場従事者',()=>5000],
+  ['lowVoltage','低電圧取扱',()=>5000]
+];
+const thirdAllowances=[...secondAllowances];
+
+let groupSerial=0;
+let lastCalculated={grandTotal:0,days:[]};
+
+const yen=v=>new Intl.NumberFormat('ja-JP',{style:'currency',currency:'JPY',maximumFractionDigits:0}).format(v);
+
+function toMinutes(v){
+  if(!v)return null;
+  const [h,m]=v.split(':').map(Number);
+  return h*60+m;
+}
+
+function overtimeInfo(inValue,outValue,rate){
+  const i=toMinutes(inValue);
+  let o=toMinutes(outValue);
+  if(i===null||o===null)return{minutes:0,normalMinutes:0,after30Minutes:0,amount:0};
+
+  // 24:00〜40:00は、そのまま当日の延長として扱う。
+  if(o<i)o+=1440;
+
+  const baseStart=540, baseEnd=1080, after30=1800;
+  let normalMinutes=0, after30Minutes=0;
+
+  if(i<baseStart) normalMinutes+=Math.max(0,Math.min(o,baseStart)-i);
+
+  if(o>baseEnd){
+    const overtimeStart=Math.max(i,baseEnd);
+    const normalEnd=Math.min(o,after30);
+    if(normalEnd>overtimeStart) normalMinutes+=normalEnd-overtimeStart;
+    const premiumStart=Math.max(i,after30);
+    if(o>premiumStart) after30Minutes+=o-premiumStart;
+  }
+
+  normalMinutes=Math.round(normalMinutes/5)*5;
+  after30Minutes=Math.round(after30Minutes/5)*5;
+
+  return {
+    minutes:normalMinutes+after30Minutes,
+    normalMinutes,
+    after30Minutes,
+    amount:Math.round((rate.day/360)*normalMinutes+(rate.after30Hour/60)*after30Minutes)
+  };
+}
+
+function allowanceSuffix(key){
+  if(key==='locationScout')return '（¥28,000）';
+  if(key==='deskWork')return '（0.5day）';
+  if(['holdPrev','holdNext','cancelFee','chroma'].includes(key))return '（1day）';
+  if(key==='lift')return '（¥7,000）';
+  if(key==='scaffoldChief')return '（¥10,000）';
+  if(key==='scaffoldWorker')return '（¥5,000）';
+  if(key==='lowVoltage')return '（¥5,000）';
+  return '';
+}
+
+function defsFor(type){
+  if(type==='first')return firstAllowances;
+  if(type==='second')return secondAllowances;
+  return thirdAllowances;
+}
+
+function allowanceHTML(type,id=''){
+  const defs=defsFor(type);
+  const prefix=type==='first'?'first':`${type}_${id}`;
+  return `<div class="grid-check">${defs.map(([k,l])=>`
+    <label class="allowance-option"><input data-key="${prefix}_${k}" type="checkbox"><span>${l}${allowanceSuffix(k)}</span></label>
+  `).join('')}</div>`;
+}
+
+function dateValue(d){
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function suggestedNextDate(){
+  const ds=[...document.querySelectorAll('[data-field="date"]')];
+  if(!ds.length)return dateValue(new Date());
+  const v=ds.at(-1).value;
+  if(!v)return dateValue(new Date());
+  const d=new Date(v+'T00:00:00');
+  d.setDate(d.getDate()+1);
+  return dateValue(d);
+}
+
+
+function parseTimePart(value,min,max){
+  const text=String(value ?? '').trim();
+  if(text==='')return null;
+  if(!/^\d{1,2}$/.test(text))return null;
+  const n=Number(text);
+  if(n<min || n>max)return null;
+  return n;
+}
+
+function closeAllTimeMenus(except=null){
+  document.querySelectorAll('.time-menu').forEach(menu=>{
+    if(menu!==except)menu.classList.add('hidden');
+  });
+}
+
+function fillTimeMenu(menu,type,input,onPick){
+  if(menu.dataset.filled==='1')return;
+  menu.dataset.filled='1';
+  const values=type==='hour'
+    ? Array.from({length:41},(_,i)=>i)
+    : [0,5,10,15,20,25,30,35,40,45,50,55];
+  for(const i of values){
+    const b=document.createElement('button');
+    b.type='button';
+    b.className='time-option';
+    b.textContent=String(i).padStart(2,'0');
+    b.addEventListener('mousedown',e=>e.preventDefault());
+    b.addEventListener('click',()=>{
+      input.value=String(i).padStart(2,'0');
+      menu.classList.add('hidden');
+      onPick();
+      input.focus();
+    });
+    menu.appendChild(b);
+  }
+}
+
+function setupTimeControls(root){
+  root.querySelectorAll('[data-time-control]').forEach(control=>{
+    if(control.dataset.ready==='1')return;
+    control.dataset.ready='1';
+
+    const field=control.dataset.timeControl;
+    const hour=control.querySelector(`[data-time-hour="${field}"]`);
+    const minute=control.querySelector(`[data-time-minute="${field}"]`);
+    const hidden=control.querySelector(`[data-field="${field}"]`);
+    if(!hour||!minute||!hidden)return;
+
+    const sync=()=>{
+      const h=parseTimePart(hour.value,0,40);
+      let m=parseTimePart(minute.value,0,59);
+      if(h===null || m===null)return false;
+      if(h===40 && m!==0)m=0;
+      hidden.value=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+      calculateAll();
+      return true;
+    };
+
+    const finalize=()=>{
+      let h=parseTimePart(hour.value,0,40);
+      let m=parseTimePart(minute.value,0,59);
+      if(h===null || m===null)return;
+
+      // 5分単位に四捨五入。
+      m=Math.round(m/5)*5;
+      if(m===60){
+        h+=1;
+        m=0;
+      }
+      if(h>40){h=40;m=0;}
+      if(h===40 && m!==0)m=0;
+
+      hour.value=String(h).padStart(2,'0');
+      minute.value=String(m).padStart(2,'0');
+      hidden.value=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+      calculateAll();
+    };
+
+    const bindPart=(input,type)=>{
+      const part=input.closest('.time-part');
+      const toggle=part?.querySelector(`[data-time-toggle="${type}"]`);
+      const menu=part?.querySelector(`[data-time-menu="${type}"]`);
+      if(!toggle||!menu)return;
+
+      fillTimeMenu(menu,type,input,finalize);
+
+      toggle.addEventListener('click',e=>{
+        e.stopPropagation();
+        const willOpen=menu.classList.contains('hidden');
+        closeAllTimeMenus(menu);
+        if(willOpen){
+          menu.classList.remove('hidden');
+          const current=menu.querySelectorAll('.time-option')[Number(input.value)||0];
+          current?.scrollIntoView({block:'center'});
+        }else{
+          menu.classList.add('hidden');
+        }
+      });
+
+      input.addEventListener('click',e=>e.stopPropagation());
+      menu.addEventListener('click',e=>e.stopPropagation());
+
+      input.addEventListener('input',()=>{
+        input.value=input.value.replace(/\D/g,'').slice(0,2);
+        sync();
+      });
+      input.addEventListener('change',finalize);
+      input.addEventListener('blur',finalize);
+
+      input.addEventListener('keydown',e=>{
+        if(e.key==='ArrowDown'){
+          e.preventDefault();
+          closeAllTimeMenus(menu);
+          menu.classList.remove('hidden');
+          const current=menu.querySelectorAll('.time-option')[Number(input.value)||0];
+          current?.focus();
+        }else if(e.key==='Enter'){
+          e.preventDefault();
+          finalize();
+          if(type==='hour')minute.focus(); else input.blur();
+        }else if(e.key==='Escape'){
+          menu.classList.add('hidden');
+        }
+      });
+
+      menu.addEventListener('keydown',e=>{
+        if(e.key==='Escape'){
+          menu.classList.add('hidden');
+          input.focus();
+        }
+      });
+    };
+
+    bindPart(hour,'hour');
+    bindPart(minute,'minute');
+  });
+
+  if(!document.body.dataset.timeMenuCloser){
+    document.body.dataset.timeMenuCloser='1';
+    document.addEventListener('click',()=>closeAllTimeMenus());
+  }
+}
+
+function createGroup(day,type,removable=true){
+  groupSerial++;
+  const id=groupSerial;
+  const rate=rates[type];
+  const g=document.createElement('div');
+  g.className='group';
+  g.dataset.groupType=type;
+  g.dataset.groupId=id;
+  g.innerHTML=`
+    <div class="between">
+      <div class="row"><h4>${rate.label}</h4><span data-field="groupSubtotal" class="badge">${yen(rate.day)}</span></div>
+      <div class="row">
+        <label>人数<input data-field="count" type="number" min="0" step="1" value="1" style="width:84px"></label>
+        ${removable?'<button data-action="removeGroup" class="small">削除</button>':''}
+      </div>
+    </div>
+    <div class="grid2">
+      <label>IN<div class="time-control" data-time-control="inTime">
+      <div class="time-part">
+        <input data-time-hour="inTime" type="text" inputmode="numeric" value="09" maxlength="2" aria-label="inTime 時" autocomplete="off">
+        <span class="unit">時</span>
+        <button type="button" class="time-arrow" data-time-toggle="hour" aria-label="時の候補を開く">▼</button>
+        <div class="time-menu hidden" data-time-menu="hour"></div>
+      </div>
+      <div class="time-part">
+        <input data-time-minute="inTime" type="text" inputmode="numeric" value="00" maxlength="2" aria-label="inTime 分" autocomplete="off">
+        <span class="unit">分</span>
+        <button type="button" class="time-arrow" data-time-toggle="minute" aria-label="分の候補を開く">▼</button>
+        <div class="time-menu hidden" data-time-menu="minute"></div>
+      </div>
+      <input data-field="inTime" type="hidden" value="09:00">
+    </div></label>
+      <label>OUT<div class="time-control" data-time-control="outTime">
+      <div class="time-part">
+        <input data-time-hour="outTime" type="text" inputmode="numeric" value="18" maxlength="2" aria-label="outTime 時" autocomplete="off">
+        <span class="unit">時</span>
+        <button type="button" class="time-arrow" data-time-toggle="hour" aria-label="時の候補を開く">▼</button>
+        <div class="time-menu hidden" data-time-menu="hour"></div>
+      </div>
+      <div class="time-part">
+        <input data-time-minute="outTime" type="text" inputmode="numeric" value="00" maxlength="2" aria-label="outTime 分" autocomplete="off">
+        <span class="unit">分</span>
+        <button type="button" class="time-arrow" data-time-toggle="minute" aria-label="分の候補を開く">▼</button>
+        <div class="time-menu hidden" data-time-menu="minute"></div>
+      </div>
+      <input data-field="outTime" type="hidden" value="18:00">
+    </div></label>
+    </div>
+    <div class="stack" style="gap:8px">
+      <strong>${rate.label} 特殊作業・手当</strong>
+      ${allowanceHTML(type,id)}
+    </div>`;
+  day.querySelector(`[data-${type}-groups]`).appendChild(g);
+  g.querySelectorAll('input,select').forEach(el=>{
+    el.addEventListener('input',calculateAll);
+    el.addEventListener('change',calculateAll);
+  });
+  setupTimeControls(g);
+  g.querySelector('[data-action="removeGroup"]')?.addEventListener('click',()=>{g.remove();calculateAll()});
+}
+
+
+function createStudent(day){
+  groupSerial++;
+  const id=groupSerial;
+  const g=document.createElement('div');
+  g.className='group';
+  g.dataset.studentId=id;
+  g.innerHTML=`
+    <div class="between">
+      <div class="row">
+        <strong>学生</strong>
+        <span data-field="studentAmount" class="badge">¥0</span>
+      </div>
+      <button data-action="removeStudent" class="small">削除</button>
+    </div>
+    <div class="grid2">
+      <label>IN${studentTimeControl('studentIn',9,id)}</label>
+      <label>OUT${studentTimeControl('studentOut',18,id)}</label>
+    </div>
+    <div class="muted">時給 ¥1,500</div>`;
+  day.querySelector('[data-student-groups]').appendChild(g);
+
+  g.querySelectorAll('input,select').forEach(el=>{
+    el.addEventListener('input',calculateAll);
+    el.addEventListener('change',calculateAll);
+  });
+  setupTimeControls(g);
+  g.querySelector('[data-action="removeStudent"]').addEventListener('click',()=>{g.remove();calculateAll()});
+  calculateAll();
+}
+
+function studentTimeControl(field,defaultHour,id){
+  const key=`${field}_${id}`;
+  return `<div class="time-control" data-time-control="${key}">
+    <div class="time-part">
+      <input data-time-hour="${key}" type="text" inputmode="numeric" value="${String(defaultHour).padStart(2,'0')}" maxlength="2" aria-label="${field} 時" autocomplete="off">
+      <span class="unit">時</span>
+      <button type="button" class="time-arrow" data-time-toggle="hour" aria-label="時の候補を開く">▼</button>
+      <div class="time-menu hidden" data-time-menu="hour"></div>
+    </div>
+    <div class="time-part">
+      <input data-time-minute="${key}" type="text" inputmode="numeric" value="00" maxlength="2" aria-label="${field} 分" autocomplete="off">
+      <span class="unit">分</span>
+      <button type="button" class="time-arrow" data-time-toggle="minute" aria-label="分の候補を開く">▼</button>
+      <div class="time-menu hidden" data-time-menu="minute"></div>
+    </div>
+    <input data-field="${key}" type="hidden" value="${String(defaultHour).padStart(2,'0')}:00">
+  </div>`;
+}
+
+function studentMinutes(inValue,outValue){
+  const i=toMinutes(inValue);
+  let o=toMinutes(outValue);
+  if(i===null||o===null)return 0;
+  if(o<i)o+=1440;
+  return Math.round(Math.max(0,o-i)/5)*5;
+}
+
+
+function createEquipment(day){
+  groupSerial++;
+  const id=groupSerial;
+  const g=document.createElement('div');
+  g.className='group';
+  g.dataset.equipmentId=id;
+  g.innerHTML=`
+    <div class="between">
+      <strong>機材屋</strong>
+      <button data-action="removeEquipment" class="small">削除</button>
+    </div>
+    <div class="grid2">
+      <label>機材屋名<input data-field="equipmentName" type="text" value="Arc System" placeholder="例：株式会社○○レンタル"></label>
+      <label>機材費<input data-field="equipmentAmount" type="number" min="0" step="1" value="0" placeholder="例 150000"></label>
+    </div>`;
+  day.querySelector('[data-equipment-groups]').appendChild(g);
+  g.querySelectorAll('input').forEach(el=>{
+    el.addEventListener('input',calculateAll);
+    el.addEventListener('change',calculateAll);
+  });
+  g.querySelector('[data-action="removeEquipment"]').addEventListener('click',()=>{g.remove();calculateAll()});
+  calculateAll();
+}
+
+function createDay(dv){
+  const s=document.createElement('section');
+  s.className='card stack';
+  s.dataset.dayId=String(Date.now()+Math.random());
+  s.innerHTML=`
+    <div class="between">
+      <label style="flex:1;min-width:220px">撮影日<input data-field="date" type="date" value="${dv||''}"></label>
+      <button data-action="removeDay" class="small">この日を削除</button>
+    </div>
+
+    <section class="stack">
+      <div class="between">
+        <h3>機材費</h3>
+        <div class="row">
+          <span data-field="equipmentSubtotal" class="badge">¥0</span>
+          <button data-action="addEquipment" class="small">＋ 機材屋を追加</button>
+        </div>
+      </div>
+      <div data-equipment-groups class="stack"></div>
+    </section>
+
+    <section class="stack">
+      <div class="between"><h3>Gaffer</h3><span data-field="gafferSubtotal" class="badge">¥0</span></div>
+      <label>作品単価<input data-field="gafferAmount" type="number" min="0" step="1" value="0" placeholder="例 200000"></label>
+      <p class="muted">Gafferは作品単価。氏名は見積書作成時に入力します。</p>
+    </section>
+
+    <section class="stack">
+      <div class="between"><h3>1st</h3><span data-field="firstSubtotal" class="badge">¥28,000</span></div>
+      <div class="grid2">
+        <label>IN<div class="time-control" data-time-control="firstIn">
+      <div class="time-part">
+        <input data-time-hour="firstIn" type="text" inputmode="numeric" value="09" maxlength="2" aria-label="firstIn 時" autocomplete="off">
+        <span class="unit">時</span>
+        <button type="button" class="time-arrow" data-time-toggle="hour" aria-label="時の候補を開く">▼</button>
+        <div class="time-menu hidden" data-time-menu="hour"></div>
+      </div>
+      <div class="time-part">
+        <input data-time-minute="firstIn" type="text" inputmode="numeric" value="00" maxlength="2" aria-label="firstIn 分" autocomplete="off">
+        <span class="unit">分</span>
+        <button type="button" class="time-arrow" data-time-toggle="minute" aria-label="分の候補を開く">▼</button>
+        <div class="time-menu hidden" data-time-menu="minute"></div>
+      </div>
+      <input data-field="firstIn" type="hidden" value="09:00">
+    </div></label>
+        <label>OUT<div class="time-control" data-time-control="firstOut">
+      <div class="time-part">
+        <input data-time-hour="firstOut" type="text" inputmode="numeric" value="18" maxlength="2" aria-label="firstOut 時" autocomplete="off">
+        <span class="unit">時</span>
+        <button type="button" class="time-arrow" data-time-toggle="hour" aria-label="時の候補を開く">▼</button>
+        <div class="time-menu hidden" data-time-menu="hour"></div>
+      </div>
+      <div class="time-part">
+        <input data-time-minute="firstOut" type="text" inputmode="numeric" value="00" maxlength="2" aria-label="firstOut 分" autocomplete="off">
+        <span class="unit">分</span>
+        <button type="button" class="time-arrow" data-time-toggle="minute" aria-label="分の候補を開く">▼</button>
+        <div class="time-menu hidden" data-time-menu="minute"></div>
+      </div>
+      <input data-field="firstOut" type="hidden" value="18:00">
+    </div></label>
+      </div>
+      <div class="stack" style="gap:8px"><strong>1st 特殊作業・手当</strong>${allowanceHTML('first')}</div>
+    </section>
+
+    <section class="stack">
+      <div class="between"><h3>2nd</h3><button data-action="addSecond" class="small">＋ 別時間の2ndを追加</button></div>
+      <div data-second-groups class="stack"></div>
+    </section>
+
+    <section class="stack">
+      <div class="between"><h3>3rd</h3><button data-action="addThird" class="small">＋ 別時間の3rdを追加</button></div>
+      <div data-third-groups class="stack"></div>
+    </section>
+
+    <section class="stack">
+      <div class="between">
+        <h3>学生</h3>
+        <button data-action="addStudent" class="small">＋ 学生を追加</button>
+      </div>
+      <span data-field="studentSubtotal" class="hidden">¥0</span>
+      <p class="muted">時給 ¥1,500。</p>
+      <div data-student-groups class="stack"></div>
+    </section>
+
+    <div class="metric"><small>この日の合計</small><strong data-field="dayTotal">¥51,000</strong></div>`;
+
+  document.getElementById('days').appendChild(s);
+  s.querySelectorAll('input,select').forEach(el=>{
+    el.addEventListener('input',calculateAll);
+    el.addEventListener('change',calculateAll);
+  });
+  setupTimeControls(s);
+  s.querySelector('[data-action="removeDay"]').addEventListener('click',()=>{s.remove();calculateAll()});
+  s.querySelector('[data-action="addEquipment"]').addEventListener('click',()=>createEquipment(s));
+  s.querySelector('[data-action="addSecond"]').addEventListener('click',()=>createGroup(s,'second',true));
+  s.querySelector('[data-action="addThird"]').addEventListener('click',()=>createGroup(s,'third',true));
+  s.querySelector('[data-action="addStudent"]').addEventListener('click',()=>createStudent(s));
+  createGroup(s,'second',false);
+  calculateAll();
+}
+
+function calcFirst(s){
+  const r=rates.first;
+  let total=r.day;
+  const items=[{label:'1st 基本料金',amount:r.day}];
+  const personItems=[{label:'基本料金',amount:r.day}];
+
+  const ot=overtimeInfo(
+    s.querySelector('[data-field="firstIn"]').value,
+    s.querySelector('[data-field="firstOut"]').value,
+    r
+  );
+  if(ot.minutes){
+    total+=ot.amount;
+    const detail=[ot.normalMinutes?`時間外 ${ot.normalMinutes}分`:'',ot.after30Minutes?`30:00以降 ${ot.after30Minutes}分`:''].filter(Boolean).join(' + ');
+    items.push({label:`1st ${detail}`,amount:ot.amount});
+    personItems.push({label:detail,amount:ot.amount});
+  }
+
+  firstAllowances.forEach(([k,l,f])=>{
+    const c=s.querySelector(`[data-key="first_${k}"]`);
+    if(c?.checked){
+      const a=f(r);
+      total+=a;
+      items.push({label:`1st ${l}`,amount:a});
+      personItems.push({label:l,amount:a});
+    }
+  });
+  return{subtotal:total,items,personItems};
+}
+
+function calcGroup(g){
+  const type=g.dataset.groupType;
+  const r=rates[type];
+  const defs=defsFor(type);
+  const id=g.dataset.groupId;
+  const count=Math.max(0,parseInt(g.querySelector('[data-field="count"]').value||'0',10));
+  if(!count)return{subtotal:0,people:0,perPerson:0,items:[],personItems:[]};
+
+  let pp=r.day;
+  const items=[{label:`${r.label} 基本料金 × ${count}名`,amount:r.day*count}];
+  const personItems=[{label:'基本料金',amount:r.day}];
+
+  const ot=overtimeInfo(
+    g.querySelector('[data-field="inTime"]').value,
+    g.querySelector('[data-field="outTime"]').value,
+    r
+  );
+  if(ot.minutes){
+    pp+=ot.amount;
+    const detail=[ot.normalMinutes?`時間外 ${ot.normalMinutes}分`:'',ot.after30Minutes?`30:00以降 ${ot.after30Minutes}分`:''].filter(Boolean).join(' + ');
+    items.push({label:`${r.label} ${detail} × ${count}名`,amount:ot.amount*count});
+    personItems.push({label:detail,amount:ot.amount});
+  }
+
+  defs.forEach(([k,l,f])=>{
+    const c=g.querySelector(`[data-key="${type}_${id}_${k}"]`);
+    if(c?.checked){
+      const a=f(r);
+      pp+=a;
+      items.push({label:`${r.label} ${l} × ${count}名`,amount:a*count});
+      personItems.push({label:l,amount:a});
+    }
+  });
+
+  const subtotal=pp*count;
+  g.querySelector('[data-field="groupSubtotal"]').textContent=yen(subtotal);
+  return{subtotal,people:count,perPerson:pp,items,personItems};
+}
+
+function formatDate(v,i){
+  if(!v)return `撮影日 ${i+1}`;
+  return new Intl.DateTimeFormat('ja-JP',{year:'numeric',month:'numeric',day:'numeric',weekday:'short'}).format(new Date(v+'T00:00:00'));
+}
+
+function calculateAll(){
+  const ss=[...document.querySelectorAll('[data-day-id]')];
+  let grand=0,secondPeople=0,thirdPeople=0;
+  const items=[],days=[];
+
+  ss.forEach((s,i)=>{
+    let equipmentTotal=0;
+    const equipment=[];
+    s.querySelectorAll('[data-equipment-id]').forEach(g=>{
+      const name=g.querySelector('[data-field="equipmentName"]')?.value?.trim() || '';
+      const amount=Math.max(0,Number(g.querySelector('[data-field="equipmentAmount"]')?.value || 0));
+      equipmentTotal+=amount;
+      equipment.push({name,amount});
+    });
+    s.querySelector('[data-field="equipmentSubtotal"]').textContent=yen(equipmentTotal);
+
+    const gafferAmount=Math.max(0,Number(s.querySelector('[data-field="gafferAmount"]')?.value || 0));
+    s.querySelector('[data-field="gafferSubtotal"]').textContent=yen(gafferAmount);
+
+    const first=calcFirst(s);
+    s.querySelector('[data-field="firstSubtotal"]').textContent=yen(first.subtotal);
+
+    let groupsTotal=0;
+    const secondGroups=[],thirdGroups=[],groupItems=[];
+
+    s.querySelectorAll('[data-group-type]').forEach(g=>{
+      const res=calcGroup(g);
+      groupsTotal+=res.subtotal;
+      groupItems.push(...res.items);
+
+      const data={
+        count:res.people,perPerson:res.perPerson,personItems:res.personItems,
+        inTime:g.querySelector('[data-field="inTime"]').value,
+        outTime:g.querySelector('[data-field="outTime"]').value
+      };
+
+      if(g.dataset.groupType==='second'){secondPeople+=res.people;secondGroups.push(data);}
+      else {thirdPeople+=res.people;thirdGroups.push(data);}
+    });
+
+    let studentTotal=0;
+    const students=[];
+    s.querySelectorAll('[data-student-id]').forEach(g=>{
+      const id=g.dataset.studentId;
+      const inTime=g.querySelector(`[data-field="studentIn_${id}"]`)?.value || '09:00';
+      const outTime=g.querySelector(`[data-field="studentOut_${id}"]`)?.value || '18:00';
+      const minutes=studentMinutes(inTime,outTime);
+      const wage=Math.round((1500/60)*minutes);
+      const total=wage;
+      studentTotal+=total;
+      g.querySelector('[data-field="studentAmount"]').textContent=yen(total);
+      students.push({inTime,outTime,minutes,wage,total});
+    });
+    s.querySelector('[data-field="studentSubtotal"]').textContent=yen(studentTotal);
+
+    const dayTotal=equipmentTotal+gafferAmount+first.subtotal+groupsTotal+studentTotal;
+    grand+=dayTotal;
+    s.querySelector('[data-field="dayTotal"]').textContent=yen(dayTotal);
+
+    const dl=formatDate(s.querySelector('[data-field="date"]').value,i);
+    items.push({heading:dl});
+    equipment.forEach(eq=>{
+      if(eq.amount>0 || eq.name) items.push({label:`機材費 ${eq.name || ''}`.trim(),amount:eq.amount});
+    });
+    if(gafferAmount>0){
+      items.push({label:'Gaffer',amount:gafferAmount});
+    }
+    items.push(...first.items,...groupItems);
+    students.forEach(st=>{
+      items.push({
+        label:`学生 ${st.minutes}分（時給¥1,500）`,
+        amount:st.total
+      });
+    });
+    days.push({
+      dateValue:s.querySelector('[data-field="date"]').value,
+      dateLabel:dl,
+      dayTotal,
+      equipment,
+      gaffer:{amount:gafferAmount},
+      students,
+      first:{
+        amount:first.subtotal,personItems:first.personItems,
+        inTime:s.querySelector('[data-field="firstIn"]').value,
+        outTime:s.querySelector('[data-field="firstOut"]').value
+      },
+      secondGroups,thirdGroups
+    });
+  });
+
+  lastCalculated={grandTotal:grand,days};
+  document.getElementById('dayCount').textContent=`${ss.length}日`;
+  document.getElementById('secondTotalPeople').textContent=`${secondPeople}名`;
+  document.getElementById('thirdTotalPeople').textContent=`${thirdPeople}名`;
+  document.getElementById('grandTotal').textContent=yen(grand);
+
+  const b=document.getElementById('breakdown');
+  b.innerHTML='';
+  items.forEach(x=>{
+    const r=document.createElement('div');
+    if(x.heading){r.className='heading';r.textContent=x.heading;}
+    else{r.className='line';r.innerHTML=`<span>${x.label}</span><strong>${yen(x.amount)}</strong>`;}
+    b.appendChild(r);
+  });
+}
+
+function buildNameInputs(){
+  calculateAll();
+  document.getElementById('estimateDate').value ||= dateValue(new Date());
+  const c=document.getElementById('nameInputs');
+  c.innerHTML='';
+
+  lastCalculated.days.forEach((d,di)=>{
+    const s=document.createElement('section');
+    s.className='card stack';
+    let h=`<h3>${d.dateLabel}</h3>
+      <label>Gaffer 氏名<input data-name-role="gaffer" data-day-index="${di}" type="text" placeholder="氏名を入力"></label>
+      <label>1st 氏名<input data-name-role="first" data-day-index="${di}" type="text" placeholder="氏名を入力"></label>`;
+
+    [['second','2nd',d.secondGroups],['third','3rd',d.thirdGroups]].forEach(([role,label,groups])=>{
+      groups.forEach((g,gi)=>{
+        if(!g.count)return;
+        h+=`<div class="stack" style="gap:8px"><strong>${label} グループ ${gi+1}　${g.inTime}–${g.outTime}</strong>`;
+        for(let i=0;i<g.count;i++){
+          h+=`<label>${label} ${i+1}人目<input data-name-role="${role}" data-day-index="${di}" data-group-index="${gi}" data-person-index="${i}" type="text" placeholder="氏名を入力"></label>`;
+        }
+        h+='</div>';
+      });
+    });
+
+    if(d.students && d.students.length){
+      h+=`<div class="stack" style="gap:8px"><strong>学生</strong>`;
+      d.students.forEach((st,si)=>{
+        h+=`<label>学生 ${si+1}人目<input data-name-role="student" data-day-index="${di}" data-person-index="${si}" type="text" placeholder="氏名を入力"></label>`;
+      });
+      h+='</div>';
+    }
+
+    s.innerHTML=h;
+    c.appendChild(s);
+  });
+
+  document.getElementById('namePanel').classList.remove('hidden');
+}
+
+function shortDate(value){
+  if(!value)return '';
+  const d=new Date(value+'T00:00:00');
+  return `${d.getMonth()+1}/${d.getDate()}`;
+}
+
+function detailsText(parts){
+  return parts.map(p=>`${p.label} ${yen(p.amount)}`).join(' / ');
+}
+
+function baseRateFromParts(parts){
+  const base=parts.find(p=>p.label==='基本料金');
+  return base ? base.amount : 0;
+}
+
+function personTableRow(dateText,name,role,inTime,outTime,total,parts){
+  const tr=document.createElement('tr');
+  tr.innerHTML=`
+    <td class="center">${dateText}</td>
+    <td>
+      <div class="item-main">${role}　${name}</div>
+      <div class="item-detail">${detailsText(parts)}</div>
+    </td>
+    <td class="center">${inTime}-${outTime}</td>
+    <td class="amount">${yen(total)}</td>`;
+  return tr;
+}
+
+function makeEstimatePage(day,dayIndex,company,person,estimateDate,grandPretax,grandTax,grandIncTax,projectTitle){
+  const page=document.createElement('section');
+  page.className='estimate-page';
+
+  const dayTax=Math.round(day.dayTotal*0.10);
+  const dayIncTax=day.dayTotal+dayTax;
+
+  page.innerHTML=`
+    <h2 class="estimate-title">見 積 書</h2>
+    ${projectTitle ? `<div class="project-title">作品名：${projectTitle}</div>` : ''}
+    <hr class="estimate-rule">
+
+    <div class="estimate-top">
+      <div>
+        <div class="client-line">
+          <span>${company || (document.getElementById('clientType')?.value==='person' ? '個人名 未入力' : '会社名 未入力')}</span>
+          <span class="honorific">${document.getElementById('clientType')?.value==='person' ? '様' : '御中'}</span>
+        </div>
+        <div class="estimate-message">下記の通り、お見積申し上げます。</div>
+        <div class="big-total">
+          <span>合計金額(税込) :</span>
+          <strong>${yen(dayIncTax)} -</strong>
+        </div>
+      </div>
+
+      <div>
+        <div class="issue-line">発行日：${estimateDate || '—'}</div>
+        <div class="issuer">
+          〒225-0011<br>
+          神奈川県横浜市青葉区あざみ野 1丁目12-13<br>
+          クリスタルハイツ 301<br>
+          担当：藤田陽介<br>
+          080-1229-3238<br>
+          mail：f.y.work1234@gmail.com
+        </div>
+      </div>
+    </div>
+
+    <table class="estimate-table">
+      <thead>
+        <tr>
+          <th class="date-col">稼働日</th>
+          <th class="item-col">品目</th>
+          <th class="time-col">時間</th>
+          <th class="amount-col">金額(税抜)</th>
+        </tr>
+      </thead>
+      <tbody data-person-rows></tbody>
+    </table>
+
+    <div class="tax-area">
+      <div>
+        <div class="tax-note">※ 表示金額は税抜です。消費税10%を加算しています。</div>
+        <div class="notes-title">備考</div>
+      </div>
+      <div class="tax-box">
+        <div class="tax-row"><span>10%税率 対象小計</span><span>${yen(day.dayTotal)}</span></div>
+        <div class="tax-row"><span>10% 税額</span><span>${yen(dayTax)}</span></div>
+        <div class="tax-row total"><span>合計(税込)</span><span>${yen(dayIncTax)} -</span></div>
+      </div>
+    </div>
+
+    ${dayIndex===lastCalculated.days.length-1 && lastCalculated.days.length>1 ? `
+      <div style="margin-top:34px;border-top:2px solid #111;padding-top:12px;display:flex;justify-content:flex-end">
+        <div style="width:310px">
+          <div class="tax-row"><span>全日程 税抜合計</span><span>${yen(grandPretax)}</span></div>
+          <div class="tax-row"><span>全日程 消費税10%</span><span>${yen(grandTax)}</span></div>
+          <div class="tax-row total"><span>全日程 合計(税込)</span><span>${yen(grandIncTax)} -</span></div>
+        </div>
+      </div>` : ''}
+
+    <div class="page-label">${dayIndex+1} / ${lastCalculated.days.length}</div>`;
+
+  const tbody=page.querySelector('[data-person-rows]');
+  const dateText=shortDate(day.dateValue);
+
+  (day.equipment || []).forEach(eq=>{
+    if(!(eq.amount>0 || eq.name))return;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td class="center">${dateText}</td>
+      <td>
+        <div class="item-main">機材費　${eq.name || '機材屋名未入力'}</div>
+      </td>
+      <td class="center">—</td>
+      <td class="amount">${yen(eq.amount)}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  if(day.gaffer && day.gaffer.amount>0){
+    const gafferName=document.querySelector(
+      `[data-name-role="gaffer"][data-day-index="${dayIndex}"]`
+    )?.value||'氏名未入力';
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td class="center">${dateText}</td>
+      <td>
+        <div class="item-main">Gaffer　${gafferName}</div>
+        <div class="item-detail">作品単価</div>
+      </td>
+      <td class="center">—</td>
+      <td class="amount">${yen(day.gaffer.amount)}</td>`;
+    tbody.appendChild(tr);
+  }
+
+  const firstName=document.querySelector(`[data-name-role="first"][data-day-index="${dayIndex}"]`)?.value||'氏名未入力';
+  tbody.appendChild(personTableRow(
+    dateText,firstName,'1st',day.first.inTime,day.first.outTime,day.first.amount,day.first.personItems
+  ));
+
+  [['second','2nd',day.secondGroups],['third','3rd',day.thirdGroups]].forEach(([role,label,groups])=>{
+    groups.forEach((g,gi)=>{
+      for(let i=0;i<g.count;i++){
+        const name=document.querySelector(
+          `[data-name-role="${role}"][data-day-index="${dayIndex}"][data-group-index="${gi}"][data-person-index="${i}"]`
+        )?.value||'氏名未入力';
+        tbody.appendChild(personTableRow(
+          dateText,name,label,g.inTime,g.outTime,g.perPerson,g.personItems
+        ));
+      }
+    });
+  });
+
+  (day.students || []).forEach((st,si)=>{
+    const studentName=document.querySelector(
+      `[data-name-role="student"][data-day-index="${dayIndex}"][data-person-index="${si}"]`
+    )?.value||'氏名未入力';
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td class="center">${dateText}</td>
+      <td>
+        <div class="item-main">学生　${studentName}</div>
+        <div class="item-detail">時給 ¥1,500 / 交通費別途支給</div>
+      </td>
+      <td class="center">${st.inTime}-${st.outTime}</td>
+      <td class="amount">${yen(st.total)}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  return page;
+}
+
+function updateClientTypeUI(){
+  const type=document.getElementById('clientType')?.value || 'company';
+  const label=document.getElementById('clientNameLabel');
+  const input=document.getElementById('clientCompany');
+  if(!label||!input)return;
+  label.textContent=type==='person' ? '個人名' : '会社名';
+  input.placeholder=type==='person' ? '例：山田 太郎' : '例：株式会社○○プロダクション';
+}
+document.getElementById('clientType')?.addEventListener('change',updateClientTypeUI);
+updateClientTypeUI();
+
+function buildPreview(){
+  calculateAll();
+
+  const company=document.getElementById('clientCompany').value;
+  const person=document.getElementById('clientPerson').value;
+  const ed=document.getElementById('estimateDate').value;
+  const estimateDate=ed
+    ? new Intl.DateTimeFormat('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(ed+'T00:00:00'))
+    : '—';
+
+  const grandPretax=lastCalculated.grandTotal;
+  const grandTax=Math.round(grandPretax*0.10);
+  const grandIncTax=grandPretax+grandTax;
+
+  const pages=document.getElementById('previewPages');
+  pages.innerHTML='';
+
+  lastCalculated.days.forEach((day,di)=>{
+    pages.appendChild(makeEstimatePage(
+      day,di,company,person,estimateDate,grandPretax,grandTax,grandIncTax
+    ));
+  });
+
+  document.getElementById('estimatePreview').classList.remove('hidden');
+  document.getElementById('estimatePreview').scrollIntoView({behavior:'smooth'});
+}
+
+const panel=document.getElementById('addDayPanel');
+const nd=document.getElementById('newDayDate');
+
+document.getElementById('showAddDay').addEventListener('click',()=>{
+  nd.value=suggestedNextDate();
+  panel.classList.remove('hidden');
+});
+document.getElementById('cancelAddDay').addEventListener('click',()=>panel.classList.add('hidden'));
+document.getElementById('confirmAddDay').addEventListener('click',()=>{
+  if(!nd.value)return;
+  createDay(nd.value);
+  panel.classList.add('hidden');
+});
+document.getElementById('buildEstimate').addEventListener('click',buildNameInputs);
+document.getElementById('previewEstimate').addEventListener('click',buildPreview);
+document.getElementById('printPdf').addEventListener('click',()=>window.print());
+
+createDay(dateValue(new Date()));
+
+document.querySelector('.add-day-bottom')?.addEventListener('click',()=>{
+  document.getElementById('showAddDay')?.click();
+});
+</script>
+</body>
+</html>
