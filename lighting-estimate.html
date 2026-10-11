@@ -519,6 +519,36 @@ button,input,select{
 #estimateInfoTop{margin-bottom:4px}
 #estimateInfoTop .grid2{width:100%}
 
+
+/* Unified section actions and staff controls */
+.section-header{display:grid;grid-template-columns:minmax(0,1fr) 112px;gap:12px;align-items:center}
+.section-header>button{width:112px;min-height:42px}
+.staff-header{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center}
+.staff-identity{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+.staff-controls{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.count-control{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.count-control input{width:68px!important;min-height:42px;padding:8px;text-align:center}
+.delete-button{width:68px;min-height:42px;color:#a12b2b;background:#fff8f8;border-color:#ead5d5}
+.role-section{gap:12px}
+[data-day-id]>section{border-top:1px solid #e5e7eb;padding-top:18px}
+.day-header{display:grid;grid-template-columns:minmax(0,1fr) 112px;gap:12px;align-items:end}
+.day-header button{min-height:46px}
+select{font:inherit;width:100%;min-height:46px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:white;color:var(--text)}
+button:disabled{opacity:.45;cursor:not-allowed}
+#gafferModePanel [role="tablist"]{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#gafferModePanel [role="tab"]{width:100%;min-height:46px}
+@media(max-width:760px){
+  .staff-header{grid-template-columns:1fr;gap:10px}
+  .staff-controls{border-top:1px solid #eef0f3;padding-top:10px}
+  .staff-identity{justify-content:space-between}
+  .group .staff-controls input{width:68px!important}
+  .section-header{grid-template-columns:minmax(0,1fr) 96px;gap:10px}
+  .section-header>button{width:96px}
+  .day-header{grid-template-columns:minmax(0,1fr) 96px;gap:10px}
+  .day-header button{font-size:12px;padding:8px}
+  .count-control input{font-size:16px}
+}
+
 </style>
 
 </head>
@@ -574,9 +604,10 @@ button,input,select{
       <p id="directModeHelp" role="tabpanel" class="muted">各撮影日の技師料を入力します。</p>
       <div id="grossModeFields" role="tabpanel" class="stack hidden">
         <label>グロス金額（全日程・税別）<input id="grossBudget" type="number" min="0" step="1" inputmode="numeric" placeholder="例：300000"></label>
-        <p class="muted">全日程の他の人件費・機材費・その他経費を差し引いた残額を、技師料として計上します。複数日の場合は、技師欄がある最初の撮影日にまとめます。</p>
+        <p class="muted">全日程の他の人件費・機材費・その他経費を差し引いた残額を、技師料として計上します。残額の計上先を選択できます。他の技師料も経費として差し引き、選んだグループ内の人数で均等配分します（1円の端数は登録順）。</p>
+        <label>残額を計上する技師グループ<select id="grossRecipient"></select></label>
         <div class="metric-grid">
-          <div class="metric"><small>技師料以外の諸経費</small><strong id="grossExpenses">¥0</strong></div>
+          <div class="metric"><small>残額計上先以外の費用</small><strong id="grossExpenses">¥0</strong></div>
           <div class="metric"><small>技師料（残額）</small><strong id="grossRemainder">—</strong></div>
         </div>
         <p id="grossStatus" role="status" class="muted"></p>
@@ -664,6 +695,7 @@ let groupSerial=0;
 let lastCalculated={grandTotal:0,days:[]};
 let gafferMode='direct';
 let grossError='';
+let grossRecipientId='';
 
 const yen=v=>new Intl.NumberFormat('ja-JP',{style:'currency',currency:'JPY',maximumFractionDigits:0}).format(v);
 
@@ -724,7 +756,7 @@ function defsFor(type){
 
 function allowanceHTML(type,id=''){
   const defs=defsFor(type);
-  const prefix=type==='first'?'first':`${type}_${id}`;
+  const prefix=`${type}_${id}`;
   return `<div class="grid-check">${defs.map(([k,l])=>`
     <label class="allowance-option"><input data-key="${prefix}_${k}" type="checkbox"><span>${l}${allowanceSuffix(k)}</span></label>
   `).join('')}</div>`;
@@ -897,11 +929,11 @@ function createGroup(day,type,removable=true){
   g.dataset.groupType=type;
   g.dataset.groupId=id;
   g.innerHTML=`
-    <div class="between">
-      <div class="row"><h4>${rate.label}</h4><span data-field="groupSubtotal" class="badge">${yen(rate.day)}</span></div>
-      <div class="row">
-        <label>人数<input data-field="count" type="number" min="0" step="1" value="1" style="width:84px"></label>
-        ${removable?'<button data-action="removeGroup" class="small">削除</button>':''}
+    <div class="staff-header">
+      <div class="staff-identity"><h4>${rate.label}</h4><span data-field="groupSubtotal" class="badge">${yen(rate.day)}</span></div>
+      <div class="staff-controls">
+        <label class="count-control">人数<input data-field="count" type="number" min="0" step="1" value="1" inputmode="numeric"></label>
+        <button type="button" data-action="removeGroup" class="small delete-button">削除</button>
       </div>
     </div>
     <div class="grid2">
@@ -947,8 +979,23 @@ function createGroup(day,type,removable=true){
   });
   setupTimeControls(g);
   g.querySelector('[data-action="removeGroup"]')?.addEventListener('click',()=>{g.remove();calculateAll()});
+  calculateAll();
 }
 
+
+function createGaffer(day){
+  const g=document.createElement('div');
+  g.className='group';
+  g.dataset.gafferId=String(++groupSerial);
+  g.innerHTML=`<div class="staff-header"><div class="staff-identity"><h4>Gaffer</h4><span data-field="gafferSubtotal" class="badge">¥0</span></div>
+    <div class="staff-controls"><label class="count-control">人数<input data-field="count" type="number" min="0" step="1" value="1" inputmode="numeric"></label><button type="button" data-action="removeGaffer" class="small delete-button">削除</button></div></div>
+    <label>作品単価（1人あたり・税別）<input data-field="gafferAmount" type="number" min="0" step="1" value="0" inputmode="numeric" placeholder="例：100000"></label>
+    <p class="muted" data-field="gafferHelp">異なる金額の場合はグループを追加してください。</p>`;
+  day.querySelector('[data-gaffer-groups]').appendChild(g);
+  g.querySelectorAll('input').forEach(input=>{input.addEventListener('input',calculateAll);input.addEventListener('change',calculateAll)});
+  g.querySelector('[data-action="removeGaffer"]').addEventListener('click',()=>{g.remove();calculateAll()});
+  calculateAll();
+}
 
 function createStudent(day){
   groupSerial++;
@@ -957,12 +1004,9 @@ function createStudent(day){
   g.className='group';
   g.dataset.studentId=id;
   g.innerHTML=`
-    <div class="between">
-      <div class="row">
-        <strong>学生</strong>
-        <span data-field="studentAmount" class="badge">¥0</span>
-      </div>
-      <button data-action="removeStudent" class="small">削除</button>
+    <div class="staff-header">
+      <div class="staff-identity"><h4>学生</h4><span data-field="studentAmount" class="badge">¥0</span></div>
+      <div class="staff-controls"><label class="count-control">人数<input data-field="count" type="number" min="0" step="1" value="1" inputmode="numeric"></label><button type="button" data-action="removeStudent" class="small delete-button">削除</button></div>
     </div>
     <div class="grid2">
       <label>IN${studentTimeControl('studentIn',9,id)}</label>
@@ -1069,81 +1113,39 @@ function createDay(dv){
   s.className='card stack';
   s.dataset.dayId=String(Date.now()+Math.random());
   s.innerHTML=`
-    <div class="between">
-      <label style="flex:1;min-width:220px">撮影日<input data-field="date" type="date" value="${dv||''}"></label>
+    <div class="day-header">
+      <label>撮影日<input data-field="date" type="date" value="${dv||''}"></label>
       <button data-action="removeDay" class="small">この日を削除</button>
     </div>
 
     <section class="stack">
-      <div class="between">
-        <h3>機材費</h3>
-        <div class="row">
-          <span data-field="equipmentSubtotal" class="badge">¥0</span>
-          <button data-action="addEquipment" class="small">＋ 機材屋を追加</button>
-        </div>
-      </div>
+      <div class="section-header"><div class="staff-identity"><h3>機材費</h3><span data-field="equipmentSubtotal" class="badge">¥0</span></div><button type="button" data-action="addEquipment" class="small">＋ 追加</button></div>
       <div data-equipment-groups class="stack"></div>
     </section>
 
-    <section class="stack" data-gaffer-section data-enabled="1">
-      <div class="between"><h3>Gaffer（技師）</h3><div class="row"><span data-field="gafferSubtotal" class="badge">¥0</span><button type="button" data-action="removeGaffer" class="small">削除</button></div></div>
-      <label>作品単価<input data-field="gafferAmount" type="number" min="0" step="1" value="0" placeholder="例 200000"></label>
-      <p class="muted" data-field="gafferHelp">氏名は見積書作成時に入力します。</p>
+    <section class="stack role-section">
+      <div class="section-header"><h3>Gaffer（技師）</h3><button type="button" data-action="addGaffer" class="small">＋ 追加</button></div>
+      <div data-gaffer-groups class="stack"></div>
     </section>
-    <button type="button" data-action="restoreGaffer" class="small hidden">＋ 技師を追加</button>
-
-    <section class="stack" data-first-section data-enabled="1">
-      <div class="between"><h3>1st</h3><div class="row"><span data-field="firstSubtotal" class="badge">¥28,000</span><button type="button" data-action="removeFirst" class="small">削除</button></div></div>
-      <div class="grid2">
-        <label>IN<div class="time-control" data-time-control="firstIn">
-      <div class="time-part">
-        <input data-time-hour="firstIn" type="text" inputmode="numeric" value="09" maxlength="2" aria-label="firstIn 時" autocomplete="off">
-        <span class="unit">時</span>
-        <button type="button" class="time-arrow" data-time-toggle="hour" aria-label="時の候補を開く">▼</button>
-        <div class="time-menu hidden" data-time-menu="hour"></div>
-      </div>
-      <div class="time-part">
-        <input data-time-minute="firstIn" type="text" inputmode="numeric" value="00" maxlength="2" aria-label="firstIn 分" autocomplete="off">
-        <span class="unit">分</span>
-        <button type="button" class="time-arrow" data-time-toggle="minute" aria-label="分の候補を開く">▼</button>
-        <div class="time-menu hidden" data-time-menu="minute"></div>
-      </div>
-      <input data-field="firstIn" type="hidden" value="09:00">
-    </div></label>
-        <label>OUT<div class="time-control" data-time-control="firstOut">
-      <div class="time-part">
-        <input data-time-hour="firstOut" type="text" inputmode="numeric" value="18" maxlength="2" aria-label="firstOut 時" autocomplete="off">
-        <span class="unit">時</span>
-        <button type="button" class="time-arrow" data-time-toggle="hour" aria-label="時の候補を開く">▼</button>
-        <div class="time-menu hidden" data-time-menu="hour"></div>
-      </div>
-      <div class="time-part">
-        <input data-time-minute="firstOut" type="text" inputmode="numeric" value="00" maxlength="2" aria-label="firstOut 分" autocomplete="off">
-        <span class="unit">分</span>
-        <button type="button" class="time-arrow" data-time-toggle="minute" aria-label="分の候補を開く">▼</button>
-        <div class="time-menu hidden" data-time-menu="minute"></div>
-      </div>
-      <input data-field="firstOut" type="hidden" value="18:00">
-    </div></label>
-      </div>
-      <div class="stack" style="gap:8px"><strong>1st 特殊作業・手当</strong>${allowanceHTML('first')}</div>
+    <section class="stack role-section">
+      <div class="section-header"><h3>1st</h3><button type="button" data-action="addFirst" class="small">＋ 追加</button></div>
+      <div data-first-groups class="stack"></div>
     </section>
-    <button type="button" data-action="restoreFirst" class="small hidden">＋ 1stを追加</button>
 
     <section class="stack">
-      <div class="between"><h3>2nd</h3><button data-action="addSecond" class="small">＋ 別時間の2ndを追加</button></div>
+      <div class="section-header"><h3>2nd</h3><button data-action="addSecond" class="small">＋ 追加</button></div>
       <div data-second-groups class="stack"></div>
     </section>
 
     <section class="stack">
-      <div class="between"><h3>3rd</h3><button data-action="addThird" class="small">＋ 別時間の3rdを追加</button></div>
+      <div class="section-header"><h3>3rd</h3><button data-action="addThird" class="small">＋ 追加</button></div>
       <div data-third-groups class="stack"></div>
     </section>
 
     <section class="stack">
-      <div class="between">
+      <div class="section-header">
         <h3>学生</h3>
-        <button data-action="addStudent" class="small">＋ 学生を追加</button>
+        <button data-action="addStudent" class="small">＋ 追加</button>
       </div>
       <span data-field="studentSubtotal" class="hidden">¥0</span>
       <p class="muted">時給 ¥1,500。</p>
@@ -1151,7 +1153,7 @@ function createDay(dv){
     </section>
 
     <section class="stack">
-      <div class="between"><h3>その他経費</h3><button type="button" data-action="addExpense" class="small">＋ 経費を追加</button></div>
+      <div class="section-header"><h3>その他経費</h3><button type="button" data-action="addExpense" class="small">＋ 追加</button></div>
       <div data-expense-groups class="stack"></div>
     </section>
     <div class="metric"><small>この日の合計</small><strong data-field="dayTotal">¥51,000</strong></div>`;
@@ -1168,49 +1170,12 @@ function createDay(dv){
   s.querySelector('[data-action="addThird"]').addEventListener('click',()=>createGroup(s,'third',true));
   s.querySelector('[data-action="addStudent"]').addEventListener('click',()=>createStudent(s));
   s.querySelector('[data-action="addExpense"]').addEventListener('click',()=>createExpense(s));
-  [['Gaffer','gaffer'],['First','first']].forEach(([action,section])=>{
-    const block=s.querySelector(`[data-${section}-section]`);
-    const restore=s.querySelector(`[data-action="restore${action}"]`);
-    s.querySelector(`[data-action="remove${action}"]`).addEventListener('click',()=>{
-      block.dataset.enabled='0';block.classList.add('hidden');restore.classList.remove('hidden');calculateAll();
-    });
-    restore.addEventListener('click',()=>{
-      block.dataset.enabled='1';block.classList.remove('hidden');restore.classList.add('hidden');calculateAll();
-    });
-  });
+  s.querySelector('[data-action="addGaffer"]').addEventListener('click',()=>createGaffer(s));
+  s.querySelector('[data-action="addFirst"]').addEventListener('click',()=>createGroup(s,'first',true));
+  createGaffer(s);
+  createGroup(s,'first',true);
   createGroup(s,'second',true);
   calculateAll();
-}
-
-function calcFirst(s){
-  if(s.querySelector('[data-first-section]')?.dataset.enabled==='0')return null;
-  const r=rates.first;
-  let total=r.day;
-  const items=[{label:'1st 基本料金',amount:r.day}];
-  const personItems=[{label:'基本料金',amount:r.day}];
-
-  const ot=overtimeInfo(
-    s.querySelector('[data-field="firstIn"]').value,
-    s.querySelector('[data-field="firstOut"]').value,
-    r
-  );
-  if(ot.minutes){
-    total+=ot.amount;
-    const detail=[ot.normalMinutes?`時間外 ${ot.normalMinutes}分`:'',ot.after30Minutes?`30:00以降 ${ot.after30Minutes}分`:''].filter(Boolean).join(' + ');
-    items.push({label:`1st ${detail}`,amount:ot.amount});
-    personItems.push({label:detail,amount:ot.amount});
-  }
-
-  firstAllowances.forEach(([k,l,f])=>{
-    const c=s.querySelector(`[data-key="first_${k}"]`);
-    if(c?.checked){
-      const a=f(r);
-      total+=a;
-      items.push({label:`1st ${l}`,amount:a});
-      personItems.push({label:l,amount:a});
-    }
-  });
-  return{subtotal:total,items,personItems};
 }
 
 function calcGroup(g){
@@ -1219,7 +1184,7 @@ function calcGroup(g){
   const defs=defsFor(type);
   const id=g.dataset.groupId;
   const count=Math.max(0,parseInt(g.querySelector('[data-field="count"]').value||'0',10));
-  if(!count)return{subtotal:0,people:0,perPerson:0,items:[],personItems:[]};
+  if(!count){g.querySelector('[data-field="groupSubtotal"]').textContent=yen(0);return{subtotal:0,people:0,perPerson:0,items:[],personItems:[]};}
 
   let pp=r.day;
   const items=[{label:`${r.label} 基本料金 × ${count}名`,amount:r.day*count}];
@@ -1260,151 +1225,113 @@ function formatDate(v,i){
 function calculateAll(){
   document.getElementById('estimatePreview').classList.add('hidden');
   const ss=[...document.querySelectorAll('[data-day-id]')];
-  let grand=0,secondPeople=0,thirdPeople=0;
-  const items=[],days=[];
   const grossMode=gafferMode==='gross';
+  const recipient=document.getElementById('grossRecipient');
+  const previous=grossRecipientId;
+  const candidates=[];
+  ss.forEach((day,di)=>day.querySelectorAll('[data-gaffer-id]').forEach((g,gi)=>{
+    if(Number(g.querySelector('[data-field="count"]').value)>0)candidates.push({id:g.dataset.gafferId,label:`${formatDate(day.querySelector('[data-field="date"]').value,di)} / 技師グループ ${gi+1}`});
+  }));
+  const selected=candidates.find(g=>g.id===previous)?.id || candidates[0]?.id || '';
+  grossRecipientId=selected;
+  recipient.innerHTML=candidates.map(g=>`<option value="${g.id}" ${g.id===selected?'selected':''}>${escapeHtml(g.label)}</option>`).join('');
+  const money=value=>Math.max(0,Math.round(Number(value)||0));
+  const people=g=>Math.max(0,Math.floor(Number(g.querySelector('[data-field="count"]').value)||0));
+  let grand=0,secondPeople=0,thirdPeople=0;
+  const days=[];
+  let target=null;
   grossError='';
-
-  ss.forEach((s,i)=>{
-    let equipmentTotal=0;
-    const equipment=[];
-    s.querySelectorAll('[data-equipment-id]').forEach(g=>{
-      const name=g.querySelector('[data-field="equipmentName"]')?.value?.trim() || '';
-      const amount=Math.max(0,Number(g.querySelector('[data-field="equipmentAmount"]')?.value || 0));
-      equipmentTotal+=amount;
-      equipment.push({name,amount});
-    });
+  ss.forEach((s,di)=>{
+    const equipment=[...s.querySelectorAll('[data-equipment-id]')].map(g=>({name:g.querySelector('[data-field="equipmentName"]').value.trim(),amount:money(g.querySelector('[data-field="equipmentAmount"]').value)}));
+    const equipmentTotal=equipment.reduce((sum,g)=>sum+g.amount,0);
     s.querySelector('[data-field="equipmentSubtotal"]').textContent=yen(equipmentTotal);
-
-    const gafferEnabled=s.querySelector('[data-gaffer-section]').dataset.enabled==='1';
-    const gafferInput=s.querySelector('[data-field="gafferAmount"]');
-    gafferInput.disabled=grossMode;
-    gafferInput.closest('label').classList.toggle('hidden',grossMode);
-    const gafferAmount=gafferEnabled && !grossMode ? Math.max(0,Number(gafferInput.value || 0)) : 0;
-    s.querySelector('[data-field="gafferSubtotal"]').textContent=yen(gafferAmount);
-    s.querySelector('[data-field="gafferHelp"]').textContent=grossMode ? '全日程の残額から自動計算します。' : '氏名は見積書作成時に入力します。';
-
-    const first=calcFirst(s);
-    s.querySelector('[data-field="firstSubtotal"]').textContent=yen(first?.subtotal||0);
-
+    const expenses=[...s.querySelectorAll('[data-expense]')].map(g=>({name:g.querySelector('[data-field="expenseName"]').value.trim(),amount:money(g.querySelector('[data-field="expenseAmount"]').value)}));
+    const gafferGroups=[];
+    s.querySelectorAll('[data-gaffer-id]').forEach((g,gi)=>{
+      const count=people(g);
+      const isTarget=grossMode && selected===g.dataset.gafferId;
+      const input=g.querySelector('[data-field="gafferAmount"]');
+      input.disabled=isTarget;
+      input.closest('label').classList.toggle('hidden',isTarget);
+      const perPerson=isTarget ? 0 : money(input.value);
+      const group={count,amount:count*perPerson,personAmounts:Array(count).fill(perPerson)};
+      gafferGroups.push(group);
+      g.querySelector('[data-field="gafferSubtotal"]').textContent=yen(group.amount);
+      g.querySelector('[data-field="gafferHelp"]').textContent=isTarget ? '全日程の残額を、このグループの人数で均等配分します。' : '異なる金額の場合はグループを追加してください。';
+      if(isTarget && count)target={group,element:g,dayIndex:di};
+    });
+    const firstGroups=[],secondGroups=[],thirdGroups=[],groupItems=[];
     let groupsTotal=0;
-    const secondGroups=[],thirdGroups=[],groupItems=[];
-
     s.querySelectorAll('[data-group-type]').forEach(g=>{
       const res=calcGroup(g);
       groupsTotal+=res.subtotal;
       groupItems.push(...res.items);
-
-      const data={
-        count:res.people,perPerson:res.perPerson,personItems:res.personItems,
-        inTime:g.querySelector('[data-field="inTime"]').value,
-        outTime:g.querySelector('[data-field="outTime"]').value
-      };
-
-      if(g.dataset.groupType==='second'){secondPeople+=res.people;secondGroups.push(data);}
-      else {thirdPeople+=res.people;thirdGroups.push(data);}
+      const data={count:res.people,perPerson:res.perPerson,personItems:res.personItems,inTime:g.querySelector('[data-field="inTime"]').value,outTime:g.querySelector('[data-field="outTime"]').value};
+      if(g.dataset.groupType==='first')firstGroups.push(data);
+      else if(g.dataset.groupType==='second'){secondPeople+=res.people;secondGroups.push(data)}
+      else{thirdPeople+=res.people;thirdGroups.push(data)}
     });
-
-    let studentTotal=0;
     const students=[];
+    let studentTotal=0;
     s.querySelectorAll('[data-student-id]').forEach(g=>{
-      const id=g.dataset.studentId;
-      const inTime=g.querySelector(`[data-field="studentIn_${id}"]`)?.value || '09:00';
-      const outTime=g.querySelector(`[data-field="studentOut_${id}"]`)?.value || '18:00';
+      const id=g.dataset.studentId,count=people(g);
+      const inTime=g.querySelector(`[data-field="studentIn_${id}"]`).value;
+      const outTime=g.querySelector(`[data-field="studentOut_${id}"]`).value;
       const minutes=studentMinutes(inTime,outTime);
-      const wage=Math.round((1500/60)*minutes);
-      const total=wage;
-      studentTotal+=total;
-      g.querySelector('[data-field="studentAmount"]').textContent=yen(total);
-      students.push({inTime,outTime,minutes,wage,total});
+      const wage=Math.round(1500*minutes/60);
+      studentTotal+=wage*count;
+      g.querySelector('[data-field="studentAmount"]').textContent=yen(wage*count);
+      for(let i=0;i<count;i++)students.push({inTime,outTime,minutes,wage,total:wage});
     });
     s.querySelector('[data-field="studentSubtotal"]').textContent=yen(studentTotal);
-
-    const expenses=[...s.querySelectorAll('[data-expense]')].map(row=>({
-      name:row.querySelector('[data-field="expenseName"]').value.trim(),
-      amount:Math.max(0,Number(row.querySelector('[data-field="expenseAmount"]').value||0))
-    }));
-    const expensesTotal=expenses.reduce((sum,row)=>sum+row.amount,0);
-    const dayTotal=equipmentTotal+gafferAmount+(first?.subtotal||0)+groupsTotal+studentTotal+expensesTotal;
+    const dayTotal=equipmentTotal+expenses.reduce((sum,g)=>sum+g.amount,0)+gafferGroups.reduce((sum,g)=>sum+g.amount,0)+groupsTotal+studentTotal;
     grand+=dayTotal;
-    s.querySelector('[data-field="dayTotal"]').textContent=yen(dayTotal);
-
-    const dl=formatDate(s.querySelector('[data-field="date"]').value,i);
-    items.push({heading:dl});
-    equipment.forEach(eq=>{
-      if(eq.amount>0 || eq.name) items.push({label:`機材費 ${eq.name || ''}`.trim(),amount:eq.amount});
-    });
-    if(gafferAmount>0){
-      items.push({label:'Gaffer',amount:gafferAmount});
-    }
-    items.push(...(first?.items||[]),...groupItems);
-    expenses.forEach(expense=>items.push({label:expense.name||'その他経費',amount:expense.amount}));
-    students.forEach(st=>{
-      items.push({
-        label:`学生 ${st.minutes}分（時給¥1,500）`,
-        amount:st.total
-      });
-    });
-    days.push({
-      dateValue:s.querySelector('[data-field="date"]').value,
-      dateLabel:dl,
-      dayTotal,
-      equipment,
-      expenses,
-      gaffer:gafferEnabled ? {amount:gafferAmount} : null,
-      students,
-      first:first ? {
-        amount:first.subtotal,personItems:first.personItems,
-        inTime:s.querySelector('[data-field="firstIn"]').value,
-        outTime:s.querySelector('[data-field="firstOut"]').value
-      } : null,
-      secondGroups,thirdGroups
-    });
+    days.push({dateValue:s.querySelector('[data-field="date"]').value,dateLabel:formatDate(s.querySelector('[data-field="date"]').value,di),dayTotal,equipment,expenses,gafferGroups,firstGroups,secondGroups,thirdGroups,students,groupItems});
   });
-
   if(grossMode){
     const input=document.getElementById('grossBudget');
     const budget=Number(input.value);
-    const target=days.findIndex(day=>day.gaffer!==null);
-    const remainder=budget-grand;
+    const remainder=Math.round(budget)-grand;
     document.getElementById('grossExpenses').textContent=yen(grand);
     document.getElementById('grossRemainder').textContent=input.value==='' ? '—' : yen(remainder);
-    if(input.value==='' || !Number.isFinite(budget) || budget<0){
-      grossError='グロス金額を0円以上で入力してください。';
-    }else if(target===-1){
-      grossError='グロスから計算するには、撮影日に技師欄を追加してください。';
-    }else if(remainder<0){
-      grossError=`諸経費がグロス金額を${yen(-remainder)}超えています。金額を調整してください。`;
-    }
+    if(input.value==='' || !Number.isFinite(budget) || budget<0)grossError='グロス金額を0円以上で入力してください。';
+    else if(!target)grossError='人数が1人以上の技師グループを追加してください。';
+    else if(remainder<0)grossError=`費用がグロス金額を${yen(-remainder)}超えています。金額を調整してください。`;
     if(!grossError){
-      days[target].gaffer.amount=remainder;
-      days[target].dayTotal+=remainder;
+      const count=target.group.count;
+      const base=Math.floor(remainder/count),extra=remainder%count;
+      target.group.personAmounts=Array.from({length:count},(_,i)=>base+(i<extra?1:0));
+      target.group.amount=remainder;
+      days[target.dayIndex].dayTotal+=remainder;
       grand+=remainder;
-      ss[target].querySelector('[data-field="gafferSubtotal"]').textContent=yen(remainder);
-      ss[target].querySelector('[data-field="dayTotal"]').textContent=yen(days[target].dayTotal);
-      const heading=items.findIndex(item=>item.heading===days[target].dateLabel);
-      items.splice(heading+1,0,{label:'Gaffer',amount:remainder});
-      document.getElementById('grossStatus').textContent=`技師料 ${yen(remainder)}を${days[target].dateLabel}に計上します。見積書にはグロスの入力欄・計算過程を表示しません。`;
-    }else{
-      document.getElementById('grossStatus').textContent=grossError;
-    }
+      target.element.querySelector('[data-field="gafferSubtotal"]').textContent=yen(remainder);
+      document.getElementById('grossStatus').textContent=`残額 ${yen(remainder)}を選択した技師グループ ${count}名に配分します。`;
+    }else document.getElementById('grossStatus').textContent=grossError;
   }
+  const items=[];
+  days.forEach((day,di)=>{
+    ss[di].querySelector('[data-field="dayTotal"]').textContent=yen(day.dayTotal);
+    items.push({heading:day.dateLabel});
+    day.equipment.forEach(g=>items.push({label:`機材費 ${g.name}`,amount:g.amount}));
+    day.gafferGroups.forEach((g,gi)=>{if(g.count)items.push({label:`Gaffer グループ ${gi+1} × ${g.count}名`,amount:g.amount})});
+    items.push(...day.groupItems);
+    day.students.forEach(g=>items.push({label:`学生 ${g.minutes}分（時給¥1,500）`,amount:g.total}));
+    day.expenses.forEach(g=>items.push({label:g.name||'その他経費',amount:g.amount}));
+  });
+  lastCalculated={grandTotal:grand,days};
   document.getElementById('previewEstimate').disabled=Boolean(grossError)||!days.length;
   document.getElementById('buildEstimate').disabled=Boolean(grossError)||!days.length;
-
-  lastCalculated={grandTotal:grand,days};
-  document.getElementById('dayCount').textContent=`${ss.length}日`;
+  document.getElementById('dayCount').textContent=`${days.length}日`;
   document.getElementById('secondTotalPeople').textContent=`${secondPeople}名`;
   document.getElementById('thirdTotalPeople').textContent=`${thirdPeople}名`;
   document.getElementById('grandTotal').textContent=yen(grand);
-
-  const b=document.getElementById('breakdown');
-  b.innerHTML='';
-  items.forEach(x=>{
-    const r=document.createElement('div');
-    if(x.heading){r.className='heading';r.textContent=x.heading;}
-    else{r.className='line';r.innerHTML=`<span>${escapeHtml(x.label)}</span><strong>${yen(x.amount)}</strong>`;}
-    b.appendChild(r);
+  const breakdown=document.getElementById('breakdown');
+  breakdown.innerHTML='';
+  items.forEach(item=>{
+    const row=document.createElement('div');
+    if(item.heading){row.className='heading';row.textContent=item.heading}
+    else{row.className='line';row.innerHTML=`<span>${escapeHtml(item.label)}</span><strong>${yen(item.amount)}</strong>`}
+    breakdown.appendChild(row);
   });
 }
 
@@ -1418,10 +1345,11 @@ function buildNameInputs(){
     const s=document.createElement('section');
     s.className='card stack';
     let h=`<h3>${d.dateLabel}</h3>`;
-    if(d.gaffer && d.gaffer.amount>0)h+=`<label>Gaffer 氏名<input data-name-role="gaffer" data-day-index="${di}" type="text" placeholder="氏名を入力"></label>`;
-    if(d.first)h+=`<label>1st 氏名<input data-name-role="first" data-day-index="${di}" type="text" placeholder="氏名を入力"></label>`;
+    d.gafferGroups.forEach((group,gi)=>{
+      for(let pi=0;pi<group.count;pi++)h+=`<label>Gaffer グループ ${gi+1} / ${pi+1}人目<input data-name-role="gaffer" data-day-index="${di}" data-group-index="${gi}" data-person-index="${pi}" type="text" placeholder="氏名を入力"></label>`;
+    });
 
-    [['second','2nd',d.secondGroups],['third','3rd',d.thirdGroups]].forEach(([role,label,groups])=>{
+    [['first','1st',d.firstGroups],['second','2nd',d.secondGroups],['third','3rd',d.thirdGroups]].forEach(([role,label,groups])=>{
       groups.forEach((g,gi)=>{
         if(!g.count)return;
         h+=`<div class="stack" style="gap:8px"><strong>${label} グループ ${gi+1}　${g.inTime}–${g.outTime}</strong>`;
@@ -1564,28 +1492,14 @@ function makeEstimatePage(day,dayIndex,company,person,estimateDate,grandPretax,g
     tbody.appendChild(tr);
   });
 
-  if(day.gaffer && day.gaffer.amount>0){
-    const gafferName=document.querySelector(
-      `[data-name-role="gaffer"][data-day-index="${dayIndex}"]`
-    )?.value||'氏名未入力';
-    const tr=document.createElement('tr');
-    tr.innerHTML=`
-      <td class="center">${dateText}</td>
-      <td>
-        <div class="item-main">Gaffer　${gafferName}</div>
-        <div class="item-detail">作品単価</div>
-      </td>
-      <td class="center">—</td>
-      <td class="amount">${yen(day.gaffer.amount)}</td>`;
-    tbody.appendChild(tr);
-  }
-
-  if(day.first){
-    const firstName=document.querySelector(`[data-name-role="first"][data-day-index="${dayIndex}"]`)?.value||'氏名未入力';
-    tbody.appendChild(personTableRow(
-      dateText,firstName,'1st',day.first.inTime,day.first.outTime,day.first.amount,day.first.personItems
-    ));
-  }
+  day.gafferGroups.forEach((group,gi)=>{
+    for(let pi=0;pi<group.count;pi++){
+      const name=document.querySelector(`[data-name-role="gaffer"][data-day-index="${dayIndex}"][data-group-index="${gi}"][data-person-index="${pi}"]`)?.value || '氏名未入力';
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td class="center">${dateText}</td><td><div class="item-main">Gaffer　${escapeHtml(name)}</div><div class="item-detail">作品単価</div></td><td class="center">—</td><td class="amount">${yen(group.personAmounts[pi])}</td>`;
+      tbody.appendChild(tr);
+    }
+  });
 
   (day.expenses||[]).forEach(expense=>{
     if(!(expense.amount>0 || expense.name))return;
@@ -1594,7 +1508,7 @@ function makeEstimatePage(day,dayIndex,company,person,estimateDate,grandPretax,g
     tbody.appendChild(tr);
   });
 
-  [['second','2nd',day.secondGroups],['third','3rd',day.thirdGroups]].forEach(([role,label,groups])=>{
+  [['first','1st',day.firstGroups],['second','2nd',day.secondGroups],['third','3rd',day.thirdGroups]].forEach(([role,label,groups])=>{
     groups.forEach((g,gi)=>{
       for(let i=0;i<g.count;i++){
         const name=document.querySelector(
@@ -1688,6 +1602,10 @@ document.getElementById('directModeTab').addEventListener('click',()=>setGafferM
 document.getElementById('grossModeTab').addEventListener('click',()=>setGafferMode('gross'));
 document.getElementById('grossBudget').addEventListener('input',calculateAll);
 document.getElementById('grossBudget').addEventListener('change',calculateAll);
+document.getElementById('grossRecipient').addEventListener('change',event=>{
+  grossRecipientId=event.currentTarget.value;
+  calculateAll();
+});
 
 createDay(dateValue(new Date()));
 
