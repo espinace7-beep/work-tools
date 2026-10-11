@@ -1567,13 +1567,14 @@ function buildPreview(){
   const grandPretax=lastCalculated.grandTotal;
   const grandTax=Math.round(grandPretax*0.10);
   const grandIncTax=grandPretax+grandTax;
+  const projectTitle=document.getElementById('projectTitle').value.trim();
 
   const pages=document.getElementById('previewPages');
   pages.innerHTML='';
 
   lastCalculated.days.forEach((day,di)=>{
     pages.appendChild(makeEstimatePage(
-      day,di,company,person,estimateDate,grandPretax,grandTax,grandIncTax
+      day,di,company,person,estimateDate,grandPretax,grandTax,grandIncTax,escapeHtml(projectTitle)
     ));
   });
 
@@ -1596,7 +1597,21 @@ document.getElementById('confirmAddDay').addEventListener('click',()=>{
 });
 document.getElementById('buildEstimate').addEventListener('click',buildNameInputs);
 document.getElementById('previewEstimate').addEventListener('click',buildPreview);
-document.getElementById('printPdf').addEventListener('click',()=>window.print());
+function estimateFilename(){
+  const dates=[...document.querySelectorAll('[data-field="date"]')]
+    .map(input=>input.value).filter(date=>/^\d{4}-\d{2}-\d{2}$/.test(date)).sort();
+  const workDate=dates.length ? dates.at(-1).replaceAll('-','') : '00000000';
+  const project=document.getElementById('projectTitle').value.trim()
+    .replace(/[\\/:*?"<>|\u0000-\u001f]/g,'_') || '作品名未入力';
+  return `${workDate}_${project}_照明部お見積り`;
+}
+
+document.getElementById('printPdf').addEventListener('click',()=>{
+  const originalTitle=document.title;
+  document.title=estimateFilename();
+  window.addEventListener('afterprint',()=>{document.title=originalTitle},{once:true});
+  window.print();
+});
 
 document.getElementById('directModeTab').addEventListener('click',()=>setGafferMode('direct'));
 document.getElementById('grossModeTab').addEventListener('click',()=>setGafferMode('gross'));
