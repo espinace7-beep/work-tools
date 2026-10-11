@@ -7,7 +7,7 @@ const extraAliases=item=>{
  if(/600c Pro II/i.test(n))a.push('600c pro2','600c2','600c ii','600cプロ2');
  if(/600c Pro$/i.test(n))a.push('600cプロ');
  if(/ロードランナー/.test(n))a.push('road runner','roadrunner');
- if(/センチュリースタンド/.test(n))a.push(n.replace('センチュリースタンド','cスタンド'));
+ if(/センチュリースタンド/.test(n)){a.push(n.replace('センチュリースタンド','cスタンド'));if(n.includes("40'"))a.push('センチュリー(大) New黒');if(n.includes("20'"))a.push('センチュリー(小) New黒');}
  return a;
 };
 function create(items){
