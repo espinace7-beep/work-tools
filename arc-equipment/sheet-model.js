@@ -61,11 +61,13 @@ function create(layout,engine,saved={}){
   values[q.id]=String(qty);units[q.id]=unit;if(item)pick(q.id,item);else if(record.choice)choices[q.id]=record.choice;
   return true;
  }
+ const fieldColumn=f=>f.x<150?0:f.x<310?1:f.x<417?2:3;
+ function columnFor(record){const item=identify(record.name,record.choice);return item?item.column??({0:0,1:1,2:1,3:2,4:3,5:3}[item.cat]):Number.isInteger(record.column)&&record.column>=0&&record.column<4?record.column:null;}
  function place(record){
   const item=identify(record.name,record.choice),printed=printedTarget(item);
   if(printed&&writeQuantity(printed,record,item))return printed.id;
-  const cat=item?.cat??record.cat,empty=fields.filter(f=>f.kind==='name'&&!raw(f.id).trim()&&f.qtyId);
-  const f=empty.find(f=>f.cat===cat)||empty[0];if(!f)return false;
+  const column=columnFor(record);if(column===null)return false;
+  const f=fields.find(f=>f.kind==='name'&&!raw(f.id).trim()&&f.qtyId&&fieldColumn(f)===column);if(!f)return false;
   values[f.id]=record.name;values[f.qtyId]=String(record.qty??1);units[f.qtyId]=record.unit||'';if(record.choice)choices[f.qtyId]=record.choice;return f.qtyId;
  }
  function route(qid){
@@ -85,7 +87,7 @@ function create(layout,engine,saved={}){
   if(Array.isArray(old.groups))old.groups.forEach((g,cat)=>g.forEach(r=>{if(r.name?.trim()){const record={...r,cat};if(!place(record))unplaced.push(record);}}));
   else if(old.inputs)old.inputs.forEach((text,cat)=>{for(const line of text.split('\n')){const key=cat+':'+line.trim(),r=engine.parse(line,old.choices?.[key],old.unitChoices?.[key]);if(r){const record={name:r.raw,qty:r.qty,unit:r.unit,choice:r.item?.id,cat};if(!place(record))unplaced.push(record);}}});
  }
- return{fields,byId,values,units,choices,itemNames,unplaced,raw,set,clear,rows,resolve,predictions,pick,display,place,route,reconcile,migrate,snapshot:()=>({version:3,values,units,choices,itemNames,unplaced})};
+ return{fields,byId,values,units,choices,itemNames,unplaced,raw,set,clear,rows,resolve,predictions,pick,display,place,columnFor,fieldColumn,route,reconcile,migrate,snapshot:()=>({version:3,values,units,choices,itemNames,unplaced})};
 }
 global.ArcSheet={create};
 })(typeof window==='undefined'?globalThis:window);

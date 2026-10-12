@@ -33,5 +33,6 @@ async function mount(old){
  a.click('#arc-app','[data-action]',{action:'new-job'});assert.equal(a.el('[data-total]').textContent,'¥0');
  a.input('[data-search]','600c');a.click('#arc-app','[data-action]',{action:'custom'});a.click('#arc-editor','[data-action]',{action:'close-editor'});a.el('[data-action="pdf"]').events.click[0]();assert(a.alerts.length,'Ambiguous name did not block PDF');
  const migrated=await mount({inputs:['Titan 4本','センチ大 ×6','','','','']});assert.equal(migrated.el('[data-total]').textContent,'¥33,800');
+ a.click('#arc-app','[data-edit]',{edit:'item5'});a.input('[data-edit-name]','未照合の特殊機材','#arc-editor');assert(!a.el('[data-placement-label]').hidden);a.input('[data-edit-column]','3','#arc-editor');a.click('#arc-editor','[data-action]',{action:'close-editor'});assert(a.el('[data-layout-warning]').hidden);assert(a.el('[data-row-detail="item5"]').textContent.includes('四列目'));
  console.log('PASS: search/add, direct quantity editing, project metadata, notes, live totals, preview/PDF with prices excluded, remove/undo, copy/new projects, ambiguous-name blocking and legacy migration');
 })().catch(e=>{console.error(e);process.exitCode=1});

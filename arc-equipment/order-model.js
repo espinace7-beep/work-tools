@@ -1,7 +1,7 @@
 (function(global){
 'use strict';
 function create(layout,engine,saved,oldSheet,legacy){
- let serial=0;const cats=['ライト','スタンド','グリップ・フラッグ','ケーブル・電源','フレーム・クロス','その他'];
+ let serial=0;const cats=['ライト・アクセサリー','スタンド','グリップ・フラッグ','ケーブル・電源','フレーム・クロス','その他'];
  const blank=()=>({id:'job'+(++serial),meta:{title:'',date:'',ld:'藤田陽介',move:'',notes:''},base:{},records:[]});
  const state=saved&&Array.isArray(saved.jobs)&&saved.jobs.length?JSON.parse(JSON.stringify(saved)):{version:1,active:'',jobs:[],recent:[]};
  serial=Math.max(state.jobs.length,...state.jobs.map(j=>Number(j.id.replace('job',''))||0));
@@ -13,6 +13,7 @@ function create(layout,engine,saved,oldSheet,legacy){
  }state.jobs.push(j);state.active=j.id;}
  if(!state.jobs.some(j=>j.id===state.active))state.active=state.jobs[0].id;
  state.recent??=[];
+ function category(item,record={}){if(!item)return Number.isInteger(record.column)?({0:0,1:2,2:3,3:5}[record.column]):record.cat??5;if(item.column===0)return 0;if(item.column===2)return 3;if(item.column===1)return item.role==='スタンド'||item.cat===1?1:2;if(item.column===3)return item.cat===4?4:5;return item.cat;}
  const current=()=>state.jobs.find(j=>j.id===state.active);
  let recordSerial=Math.max(0,...state.jobs.flatMap(j=>j.records.map(r=>Number(String(r.id).replace('item',''))||0)));
  function entry(record){return engine.entry(record.name,record.qty,record.unit||'',record.choice);}
@@ -26,18 +27,19 @@ function create(layout,engine,saved,oldSheet,legacy){
  function remove(id){const list=current().records,index=list.findIndex(r=>r.id===id);if(index<0)return null;return{record:list.splice(index,1)[0],index,jobId:state.active};}
  function undo(removal){const job=state.jobs.find(j=>j.id===removal.jobId);if(job&&!job.records.some(r=>r.id===removal.record.id))job.records.splice(removal.index,0,removal.record);}
  function project(copy=false){const j=blank();if(copy){const source=current();j.meta={...source.meta,title:source.meta.title?source.meta.title+'（コピー）':'',date:''};j.base=JSON.parse(JSON.stringify(source.base));j.records=source.records.map(r=>({...r,id:'item'+(++recordSerial)}));}state.jobs.push(j);state.active=j.id;return j;}
- function build(){const job=current(),sheet=ArcSheet.create(layout,engine,job.base||{}),unplaced=[],rows=[];
+ function build(){const job=current(),sheet=ArcSheet.create(layout,engine,job.base||{}),unplaced=[],rows=[],placements={};
   for(const [id,value] of Object.entries(job.meta))sheet.set(id,value);
   for(const record of job.records){const r=entry(record);if(!r){rows.push({record,valid:false,price:null,name:'機材名未入力',candidates:[]});continue;}r.record=record;rows.push(r);
-   const qid=sheet.place({name:r.known?r.name:record.name,qty:record.qty,unit:record.unit,choice:r.item?.id||record.choice,cat:r.item?.cat??record.cat});
-   if(!qid){unplaced.push(record.id);continue;}
+   const qid=sheet.place({name:r.known?r.name:record.name,qty:record.qty,unit:record.unit,choice:r.item?.id||record.choice,cat:r.item?.cat??record.cat,column:record.column});
+   if(!qid){unplaced.push(record.id);placements[record.id]={column:sheet.columnFor({...record,name:r.known?r.name:record.name,choice:r.item?.id||record.choice}),reason:sheet.columnFor({...record,name:r.known?r.name:record.name,choice:r.item?.id||record.choice})===null?'classification':'capacity'};continue;}
+   const target=sheet.byId.get(sheet.byId.get(qid).nameId);placements[record.id]={qid,column:sheet.fieldColumn(target),preset:!!target.text.trim()};
    if(record.note){const f=sheet.byId.get(sheet.byId.get(qid).nameId);if(f.noteId)sheet.set(f.noteId,[sheet.raw(f.noteId),record.note].filter(Boolean).join(' / '));else sheet.set('notes',[sheet.raw('notes'),r.name+'：'+record.note].filter(Boolean).join('\n'));}
   }
   let total=0,pending=0,unknown=0,invalid=0;
   for(const r of rows){if(!r.valid)invalid++;else if(r.unitPending||r.candidates.length>1&&!r.known)pending++;else if(r.price===null)unknown++;else total+=r.price;}
-  return{sheet,rows,total,pending,unknown,invalid,unplaced};
+  return{sheet,rows,total,pending,unknown,invalid,unplaced,placements};
  }
- return{state,current,entry,add,remove,undo,project,build,cats,snapshot:()=>state};
+ return{state,current,category,entry,add,remove,undo,project,build,cats,snapshot:()=>state};
 }
 global.ArcOrder={create};
 })(typeof window==='undefined'?globalThis:window);
