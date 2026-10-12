@@ -63,7 +63,7 @@ function openEditor(id){
  if(!dialog.open)dialog.showModal();refreshEditor();update();
  const focus=equipment?(active.kind==='qty'?$('[data-edit-qty]'):$('[data-edit-name]')):(active.format?$('[data-edit-date]'):$('[data-edit-text]'));focus.focus();
 }
-function closeEditor(){dialog.close();active=null;update();}
+function closeEditor(){const q=editorRow();if(q)model.route(q.id);dialog.close();active=null;update();}
 function zoom(width){const viewport=$('[data-viewport]');zoomWidth=Math.max(viewport.clientWidth,Math.min(2400,width));$('[data-paper]').style.width=zoomWidth+'px';$('[data-zoom]').textContent=Math.round(zoomWidth/viewport.clientWidth*100)+'%';}
 root.addEventListener('click',e=>{
  const cell=e.target.closest('[data-cell]');if(cell){openEditor(cell.dataset.cell);return;}
@@ -83,16 +83,16 @@ dialog.addEventListener('input',e=>{
 });
 dialog.addEventListener('change',e=>{if(e.target.matches('[data-edit-unit]')){const q=editorRow();if(q){model.units[q.id]=e.target.value;refreshEditor();update();}}});
 dialog.addEventListener('click',e=>{
- const pick=e.target.closest('[data-pick]');if(pick){const q=editorRow(),item=engine.byId.get(pick.dataset.pick);if(q&&item){model.pick(q.id,item);$('[data-edit-name]').value=item.name;if(!$('[data-edit-qty]').value){model.set(q.id,'1');$('[data-edit-qty]').value='1';}refreshEditor();update();}return;}
+ const pick=e.target.closest('[data-pick]');if(pick){const q=editorRow(),item=engine.byId.get(pick.dataset.pick);if(q&&item){model.pick(q.id,item);$('[data-edit-name]').value=item.name;if(!$('[data-edit-qty]').value){model.set(q.id,'1');$('[data-edit-qty]').value='1';}const target=model.route(q.id);if(target!==q.id)openEditor(target);else{refreshEditor();update();}}return;}
  const action=e.target.closest('[data-action]')?.dataset.action;
  if(action==='close-editor')closeEditor();
  if(action==='clear-cell'){model.clear(active.id);closeEditor();}
 });
-dialog.addEventListener('cancel',()=>{active=null;update();});dialog.addEventListener('close',()=>{if(active){active=null;update();}});
+dialog.addEventListener('cancel',()=>{const q=editorRow();if(q)model.route(q.id);active=null;update();});dialog.addEventListener('close',()=>{if(active){const q=editorRow();if(q)model.route(q.id);active=null;update();}});
 $('[data-jump]').addEventListener('change',e=>{if(!model)return;const ids={header:'title',notes:'notes'},targets={light:[0,140],stand:[1,540],grip:[2,140],power:[3,140],frame:[4,140]};let id=ids[e.target.value];if(!id){const target=targets[e.target.value];id=model.fields.find(f=>f.kind==='name'&&f.cat===target?.[0]&&f.y>=target[1])?.id;}const b=id&&document.querySelector('.cell[data-cell="'+id+'"]');if(b){if(zoomWidth<$('[data-viewport]').clientWidth*1.5)zoom(Math.max(850,$('[data-viewport]').clientWidth));b.scrollIntoView({block:'center',inline:'center',behavior:'smooth'});b.focus();}e.target.value='';});
 let searchTimer;
 $('[data-search]').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{if(!ready)return;const q=$('[data-search]').value.trim();const matches=q?engine.suggest(q):[];$('[data-catalog-status]').textContent=q?matches.length+'候補（タップで空欄に追加）':'';$('[data-catalog-list]').innerHTML=matches.slice(0,30).map(i=>'<button data-add-item="'+i.id+'">'+escape(i.name)+'<small>'+(i.price===null?'記載なし':yen(i.price))+' · p.'+i.pages[0]+'</small></button>').join('');},100);});
-root.addEventListener('click',e=>{const b=e.target.closest('[data-add-item]');if(!b||!model)return;const item=engine.byId.get(b.dataset.addItem);if(!model.place({name:item.name,qty:1,choice:item.id,cat:item.cat})){alert('空欄がありません。不要な機材の欄を空にしてください。');return;}update();const f=model.fields.find(f=>f.kind==='name'&&model.raw(f.id)===item.name&&model.raw(f.qtyId)==='1');if(f)openEditor(f.id);});
+root.addEventListener('click',e=>{const b=e.target.closest('[data-add-item]');if(!b||!model)return;const item=engine.byId.get(b.dataset.addItem);const target=model.place({name:item.name,qty:1,choice:item.id,cat:item.cat});if(!target){alert('空欄がありません。不要な機材の欄を空にしてください。');return;}update();openEditor(target);});
 function makePdf(jpeg,w,h){
 const enc=new TextEncoder();const chunks=[];let length=0;const offsets=[0];
 const add=b=>{if(typeof b==='string')b=enc.encode(b);chunks.push(b);length+=b.length;};
@@ -119,7 +119,7 @@ template.onload=render;template.onerror=()=>{$('[data-save]').textContent='原�
 Promise.all([fetch('./catalog.json?v=eea8ceddafcd').then(r=>{if(!r.ok)throw Error('catalog');return r.json();}),fetch('./sheet-layout.json?v=9891f5f42484').then(r=>{if(!r.ok)throw Error('layout');return r.json();})]).then(([catalog,schema])=>{
  engine=ArcCatalog.create(catalog.items);layout=schema;let saved,old;
  try{saved=JSON.parse(localStorage.getItem(storageKey)||'null');old=JSON.parse(localStorage.getItem(legacyKey)||'null');}catch(e){}
- model=ArcSheet.create(layout,engine,saved||{});if(!saved&&old)model.migrate(old);
+ model=ArcSheet.create(layout,engine,saved||{});if(!saved&&old)model.migrate(old);model.reconcile();
  ready=true;paintCells();showUnplaced();update();zoom($('[data-viewport]').clientWidth);$('[data-action="pdf"]').disabled=false;
 }).catch(()=>{$('[data-save]').textContent='読み込めませんでした。ページを再読み込みしてください。';});
 })();

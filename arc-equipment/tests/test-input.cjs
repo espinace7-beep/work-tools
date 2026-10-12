@@ -31,5 +31,9 @@ async function mount(old){
  if(process.env.ARC_QA_DIR){fs.mkdirSync(process.env.ARC_QA_DIR,{recursive:true});fs.writeFileSync(path.join(process.env.ARC_QA_DIR,'sheet.pdf'),Buffer.from(await a.blob().arrayBuffer()));}
  a.click('#arc-app','[data-cell]',{cell:blank.id});a.click('#arc-editor','[data-action]',{action:'clear-cell'});assert.equal(a.el('[data-total]').textContent,'¥7,800');
  const migrated=await mount({meta:{title:'旧作品'},inputs:['Titan 4本','センチ大 ×6','','','','']});assert.equal(migrated.el('[data-total]').textContent,'¥33,800');assert(migrated.el('[data-unplaced]').hidden);
+ const route=await mount();const empty=layout.fields.find(f=>f.kind==='name'&&!f.text&&f.cat===0),road=layout.fields.find(f=>f.kind==='name'&&f.text==='ﾛｰﾄﾞﾗﾝﾅｰ');
+ route.click('#arc-app','[data-cell]',{cell:empty.id});route.input('[data-edit-name]','road runner');route.input('[data-edit-qty]','2');route.click('#arc-editor','[data-action]',{action:'close-editor'});await new Promise(r=>setTimeout(r,230));
+ const routed=JSON.parse(route.storage.get('arc-equipment-sheet-v3'));assert.equal(routed.values[road.qtyId],'2');assert(!routed.values[empty.id]);assert.equal(route.el('[data-total]').textContent,'¥15,000');
+ const add=await mount();add.click('#arc-app','[data-add-item]',{addItem:catalog.items.find(i=>i.name==='ロードランナー').id});assert.equal(add.el('[data-edit-name]').value,'ロードランナー');assert.equal(add.el('[data-edit-qty]').value,'1');
  console.log('PASS: sheet click editing, printed-name quantities, live estimates, candidate selection, date/title editing, PDF blocking/export, prices excluded, clear, autosave and legacy migration');
 })().catch(e=>{console.error(e);process.exitCode=1});

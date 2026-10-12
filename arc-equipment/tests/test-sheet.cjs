@@ -21,3 +21,34 @@ const restored=ArcSheet.create(layout,engine,JSON.parse(JSON.stringify(migrated.
 const old=ArcSheet.create(layout,engine);old.migrate({inputs:['G3 ×2','センチ大 ×6','','','','']});assert.equal(old.rows().reduce((s,r)=>s+(r.price||0),0),45800);
 const crowded=ArcSheet.create(layout,engine);crowded.migrate({groups:[Array.from({length:300},()=>({name:'orbiter',qty:1}))]});assert.equal(crowded.rows().length+crowded.unplaced.length,300,'Migration lost user input');
 console.log('PASS: all editable field bounds, no overlapping targets, blank default totals, printed-name matching, candidate selection, set quantities, matrix pricing, dates, deletion, migration and autosave restore');
+
+const routing=ArcSheet.create(layout,engine);
+const road=layout.fields.find(f=>f.kind==='name'&&f.text==='ﾛｰﾄﾞﾗﾝﾅｰ');
+assert.equal(routing.place({name:'road runner',qty:2,unit:'台'}),road.qtyId);
+assert.equal(routing.raw(road.qtyId),'2');assert.equal(routing.rows().length,1);
+routing.place({name:'ロードランナー',qty:3,unit:'台'});assert.equal(routing.raw(road.qtyId),'5');
+assert.equal(routing.place({name:'センチ大',qty:6,unit:'台'}),stand.qtyId);
+const black=layout.fields.find(f=>f.kind==='name'&&f.text==='黒フラッグ（大）');
+assert.equal(routing.place({name:'黒フラッグ 大',qty:4,unit:'枚'}),black.qtyId,'Black flags went to generic flag row');
+const source=layout.fields.find(f=>f.kind==='name'&&!f.text&&f.cat===0);
+routing.set(source.id,'センチ大');routing.set(source.qtyId,'2');routing.set(source.noteId,'現場用');
+assert.equal(routing.route(source.qtyId),stand.qtyId);assert.equal(routing.raw(stand.qtyId),'8');assert.equal(routing.raw(source.id),'');assert.equal(routing.raw(source.qtyId),'');assert(routing.raw('notes').includes('現場用'));
+const snapshot=JSON.parse(JSON.stringify(routing.snapshot()));routing.reconcile();assert.deepEqual(routing.snapshot(),snapshot,'Routing was not idempotent');
+const duplicate=ArcSheet.create(layout,engine,{values:{[source.id]:'ロードランナー',[source.qtyId]:'2'}});duplicate.reconcile();assert.equal(duplicate.raw(road.qtyId),'2');assert.equal(duplicate.raw(source.id),'');
+const frame=layout.fields.find(f=>f.kind==='qty'&&f.variant==='枠'&&ArcCatalog.normal(routing.raw(f.nameId)).includes('6×6'));
+assert.equal(routing.place({name:'バタフライフレーム 6F×6F',qty:2,unit:'個'}),frame.id);
+const lgc=layout.fields.find(f=>f.kind==='qty'&&f.variant==='LGC'&&ArcCatalog.normal(routing.raw(f.nameId)).includes('6×6'));
+assert.equal(routing.place({name:'6×6 LGC',qty:1,unit:'枚'}),lgc.id);
+assert.equal(routing.resolve(frame).price,3000);assert.equal(routing.resolve(lgc).price,2500);
+const battery=layout.fields.find(f=>f.kind==='name'&&f.text.includes('Vﾏｳﾝﾄ'));
+routing.place({name:'Vマウントバッテリー DUO150(2個set)',qty:1,unit:'セット'});
+routing.place({name:'Vマウントバッテリー DUO150(2個set)',qty:3,unit:'個'});
+assert.equal(routing.raw(battery.qtyId),'5');assert.equal(routing.units[battery.qtyId],'個');assert.equal(routing.resolve(routing.byId.get(battery.qtyId)).units,3);
+const changed=ArcSheet.create(layout,engine);changed.set(road.id,'orbiter');changed.set(road.qtyId,'1');const chosen=changed.place({name:'road runner',qty:2,unit:'台'});assert.notEqual(chosen,road.qtyId);assert.equal(changed.raw(road.id),'orbiter');
+console.log('PASS: original-row placement, duplicate quantity addition, manual-input routing, restored-state reconciliation, notes preservation, frame/material columns, mixed set units and edited-row protection');
+
+const cable=layout.fields.find(f=>f.kind==='name'&&ArcCatalog.normal(f.text)===ArcCatalog.normal('30A延長コード C型'));
+assert.equal(routing.place({name:'C30A延長コード 8m',qty:5,unit:'本'}),cable.qtyId);
+const heavy=layout.fields.find(f=>f.kind==='name'&&ArcCatalog.normal(f.text)===ArcCatalog.normal('60Sコード'));
+assert.equal(routing.place({name:'60Sコード 20m',qty:3,unit:'本'}),heavy.qtyId);
+console.log('PASS: printed C-type extension and 60S cable rows');

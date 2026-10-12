@@ -3,6 +3,8 @@
 const normal=s=>String(s).normalize('NFKC').toLowerCase().replace(/[ぁ-ゖ]/g,c=>String.fromCharCode(c.charCodeAt(0)+96)).replace(/[×x]/g,'×').replace(/[\s\-ー・'’()（）_]/g,'');
 const extraAliases=item=>{
  const n=item.name,a=[];
+ const code=n.match(/^(60|38|22)Sコード 20m$/);if(code)a.push(code[1]+'Sコード');
+ const extension=n.match(/^C(30|60)A延長コード 8m$/);if(extension)a.push(extension[1]+'A延長コード C型');
  if(/SKYPANEL/i.test(n)){a.push(n.replace(/LED\s*/i,'').replace(/SKYPANEL/i,'スカイパネル'));const m=n.match(/S\d+C/i);if(m)a.push(m[0]);}
  if(/600c Pro II/i.test(n))a.push('600c pro2','600c2','600c ii','600cプロ2');
  if(/600c Pro$/i.test(n))a.push('600cプロ');
