@@ -1,0 +1,16 @@
+const assert=require('node:assert/strict');require('../catalog-core');require('../sheet-model');require('../order-model');const layout=require('../sheet-layout.json'),engine=ArcCatalog.create(require('../catalog.json').items);
+const order=ArcOrder.create(layout,engine),road=engine.resolve('road runner')[0],titan=engine.resolve('titan')[0];assert.equal(order.build().total,0);
+const r=order.add(road);r.qty='6';order.add(road);assert.equal(order.current().records.length,1);assert.equal(r.qty,'7');
+const built=order.build(),printed=layout.fields.find(f=>f.text==='ﾛｰﾄﾞﾗﾝﾅｰ');assert.equal(built.sheet.raw(printed.qtyId),'7');assert.equal(built.total,52500);
+const tube=order.add(titan);assert.equal(tube.qty,'2');assert.equal(tube.unit,'本');tube.qty='4';assert.equal(order.build().total,78500);
+tube.unit='セット';tube.qty='1';order.add(titan);assert.equal(tube.qty,'2');assert.equal(order.build().total,78500);
+const remove=order.remove(r.id);assert.equal(order.build().total,26000);order.undo(remove);assert.equal(order.build().total,78500);
+order.current().meta={title:'MV',date:'2026-10-12',ld:'藤田陽介',notes:'元の備考'};r.note='人物用';assert(order.build().sheet.raw('notes').includes('人物用'));assert(order.build().sheet.raw('notes').includes('元の備考'));
+const baseJob=order.current();order.project(true);assert.equal(order.current().meta.title,'MV（コピー）');assert.equal(order.current().meta.date,'');assert.equal(order.current().records.length,2);order.current().records[0].qty='1';assert.equal(baseJob.records[0].qty,'7');
+order.project();assert.equal(order.build().total,0);const custom=order.add(null,'600c');custom.qty='2';assert.equal(order.build().pending,1);custom.name='';assert.equal(order.build().invalid,1);custom.name='不明機材';assert.equal(order.build().unknown,1);
+const state=JSON.parse(JSON.stringify(order.snapshot())),restored=ArcOrder.create(layout,engine,state);assert.equal(restored.state.jobs.length,3);assert.equal(restored.current().records[0].name,'不明機材');
+const sheet=ArcSheet.create(layout,engine);sheet.place({name:'road runner',qty:3,unit:'台'});sheet.place({name:'titan',qty:4,unit:'本'});sheet.set('title','既存案件');sheet.set('notes','既存備考');
+const migrated=ArcOrder.create(layout,engine,null,sheet.snapshot());assert.equal(migrated.current().records.length,2);assert.equal(migrated.current().meta.title,'既存案件');assert.equal(migrated.build().total,48500);assert.equal(migrated.build().sheet.rows().length,2,'Migration doubled quantities');
+const old=ArcOrder.create(layout,engine,null,null,{inputs:['G3 ×2','センチ大 ×6','','','','']});assert.equal(old.build().total,45800);
+const large=ArcOrder.create(layout,engine);for(let i=0;i<250;i++)large.add(null,'未登録'+i);assert.equal(large.current().records.length,250);assert(large.build().unplaced.length>0);
+console.log('PASS: list add/merge, quantity/unit edits, original-row placement, estimates, remove/undo, notes, project copy/isolation, validation, autosave restoration, old-sheet migration without duplicates and overflow preservation');
